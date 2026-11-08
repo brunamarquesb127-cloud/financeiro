@@ -68,6 +68,26 @@
   .backupInfo.alerta{color:#8a6d00;background:#fff6db;border:0.5px solid #f0e0a0;border-radius:6px;padding:8px 10px}
   .backupMsg{font-size:12px;margin-top:8px;color:var(--text-secondary)}
   .backupMsg.erro{color:var(--danger)}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{flex:1;font-weight:600;color:var(--text-secondary)}
+  .tab.ativa,.tab.ativa:hover{background:var(--text);color:#fff;border-color:var(--text)}
+  .formGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px}
+  .formGrid label{display:flex;flex-direction:column;font-size:12px;color:var(--text-secondary);gap:4px;min-width:0}
+  .formGrid label.full{grid-column:1/-1}
+  .formGrid input,.formGrid select{width:100%;min-width:0}
+  .pill{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:6px}
+  .p1{background:#fde2e2;color:#791f1f}
+  .p2{background:#fff1cc;color:#7a5a00}
+  .p3{background:#e3eefb;color:#0c447c}
+  .feito .rowDesc{text-decoration:line-through;color:var(--text-muted)}
+  .compraLeft{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+  .viagem{background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px}
+  .viagemHead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .viagem h3{font-size:15px;font-weight:600;margin:0}
+  .vLinha{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+  .vTotal{border-top:0.5px solid var(--border);margin-top:6px;padding-top:6px;font-weight:600}
+  .vDica{font-size:12px;color:var(--accent);margin-top:6px}
+  .vObs{font-size:12px;color:var(--text-secondary);margin-top:6px}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -142,6 +162,51 @@
     <button id="addBtn" class="addBtn" style="margin-bottom:8px">+ adicionar gasto</button>
     <div id="tipoResumo" class="resumo"></div>
     <div id="gastosList" class="list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Planejamento</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab" data-aba="compras" role="tab">Compras</button>
+      <button class="tab" data-aba="viagens" role="tab">Viagens</button>
+    </div>
+
+    <div id="abaCompras" class="aba">
+      <p class="hint">Lista do que você quer comprar. Marque quando comprar. Não entra no cálculo do mês.</p>
+      <div class="formGrid">
+        <label class="full">O que quero comprar<input id="compraDesc" type="text" placeholder="Ex: tênis, celular"></label>
+        <label>Valor (R$)<input id="compraVal" type="number" placeholder="0,00"></label>
+        <label>Prioridade
+          <select id="compraPrio">
+            <option value="1">Alta</option>
+            <option value="2" selected>Média</option>
+            <option value="3">Baixa</option>
+          </select>
+        </label>
+        <label class="full">Quando pretendo comprar<select id="compraMes"><option value="">Sem mês definido</option></select></label>
+      </div>
+      <button id="addCompraBtn" class="addBtn" style="margin-bottom:8px">+ adicionar à lista</button>
+      <div id="comprasResumo" class="resumo"></div>
+      <div id="comprasList" class="list"></div>
+    </div>
+
+    <div id="abaViagens" class="aba" style="display:none">
+      <p class="hint">Planeje cada viagem: passagem, parcelas e quanto dinheiro vai precisar. Não entra no cálculo do mês.</p>
+      <div class="formGrid">
+        <label class="full">Destino<input id="vDestino" type="text" placeholder="Ex: Rio de Janeiro"></label>
+        <label>Ida<input id="vIda" type="date"></label>
+        <label>Volta<input id="vVolta" type="date"></label>
+        <label>Passagem (total R$)<input id="vPassagem" type="number" placeholder="0,00"></label>
+        <label>Parcelas da passagem<input id="vParcelas" type="number" min="1" value="1"></label>
+        <label>Hospedagem (R$)<input id="vHosp" type="number" placeholder="0,00"></label>
+        <label>Dinheiro para gastar lá (R$)<input id="vGastar" type="number" placeholder="0,00"></label>
+        <label>Outros (R$)<input id="vOutros" type="number" placeholder="transporte, passeios..."></label>
+        <label>Já guardado (R$)<input id="vGuardado" type="number" placeholder="0,00"></label>
+        <label class="full">Observações<input id="vObs" type="text" placeholder="Ex: ir com a prima, reservar Airbnb"></label>
+      </div>
+      <button id="addViagemBtn" class="addBtn" style="margin-bottom:8px">+ adicionar viagem</button>
+      <div id="viagensList"></div>
+    </div>
   </div>
 
   <div class="section">
@@ -459,9 +524,200 @@
     render();
   });
 
+  // ---------- Planejamento: compras e viagens ----------
+  const PRIO_NOME = {1:'Alta', 2:'Média', 3:'Baixa'};
+  const compraMesSel = document.getElementById('compraMes');
+  MESES.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; compraMesSel.appendChild(o); });
+
+  function renderCompras(){
+    const lista = loadList('compras');
+    const el = document.getElementById('comprasList');
+    el.innerHTML = '';
+    if(!lista.length){ el.innerHTML = '<div class="empty">nenhum item na lista ainda</div>'; }
+    const ord = lista.map((c,i)=>({c,i})).sort((a,b)=>
+      (a.c.feito?1:0)-(b.c.feito?1:0) || (a.c.prio||2)-(b.c.prio||2) || (Number(b.c.v)||0)-(Number(a.c.v)||0));
+    const porPrio = {1:0,2:0,3:0};
+    let falta = 0, comprado = 0;
+    ord.forEach(({c,i})=>{
+      const v = Number(c.v)||0;
+      const prio = PRIO_NOME[c.prio] ? c.prio : 2;
+      if(c.feito){ comprado += v; } else { falta += v; porPrio[prio] += v; }
+      const row = document.createElement('div');
+      row.className = 'row' + (c.feito ? ' feito' : '');
+      const left = document.createElement('label');
+      left.className = 'compraLeft';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !!c.feito;
+      cb.setAttribute('aria-label','marcar como comprado');
+      cb.onchange = ()=>{ lista[i].feito = cb.checked; saveList('compras', lista); renderCompras(); };
+      const txt = document.createElement('span');
+      txt.style.minWidth = '0';
+      const d = document.createElement('span');
+      d.className = 'rowDesc'; d.textContent = String(c.d);
+      const meta = document.createElement('span');
+      meta.className = 'rowMeta';
+      const pill = document.createElement('span');
+      pill.className = 'pill p' + prio; pill.textContent = PRIO_NOME[prio];
+      meta.appendChild(pill);
+      meta.appendChild(document.createTextNode(c.feito ? 'comprado' : (c.mes || 'sem mês definido')));
+      txt.appendChild(d); txt.appendChild(meta);
+      left.appendChild(cb); left.appendChild(txt);
+      const right = document.createElement('span');
+      right.className = 'rowRight';
+      const val = document.createElement('span');
+      val.textContent = fmt(v);
+      const del = document.createElement('button');
+      del.className = 'delBtn'; del.textContent = '✕';
+      del.setAttribute('aria-label','remover item');
+      del.onclick = ()=>{ lista.splice(i,1); saveList('compras', lista); renderCompras(); };
+      right.appendChild(val); right.appendChild(del);
+      row.appendChild(left); row.appendChild(right);
+      el.appendChild(row);
+    });
+    const resumo = document.getElementById('comprasResumo');
+    if(lista.length){
+      let t = 'Falta comprar: ' + fmt(falta) + '  ·  Alta ' + fmt(porPrio[1]) + '  ·  Média ' + fmt(porPrio[2]) + '  ·  Baixa ' + fmt(porPrio[3]);
+      if(comprado > 0){ t += '  ·  Já comprado: ' + fmt(comprado); }
+      resumo.textContent = t;
+    } else { resumo.textContent = ''; }
+  }
+
+  document.getElementById('addCompraBtn').addEventListener('click', ()=>{
+    const d = document.getElementById('compraDesc').value.trim();
+    if(!d) return;
+    const v = parseFloat(document.getElementById('compraVal').value) || 0;
+    const prio = parseInt(document.getElementById('compraPrio').value) || 2;
+    const mes = compraMesSel.value || '';
+    const lista = loadList('compras');
+    lista.push({d, v, prio, mes, feito:false});
+    saveList('compras', lista);
+    document.getElementById('compraDesc').value = '';
+    document.getElementById('compraVal').value = '';
+    renderCompras();
+  });
+
+  function fmtData(s){ if(!s) return ''; const p = String(s).split('-'); return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : String(s); }
+  function dataLocal(s){ const p = String(s).split('-').map(Number); return (p.length === 3 && !p.some(isNaN)) ? new Date(p[0], p[1]-1, p[2]) : null; }
+  function diasEntre(a, b){ return Math.round((b - a) / 86400000); }
+
+  function renderViagens(){
+    const lista = loadList('viagens');
+    const el = document.getElementById('viagensList');
+    el.innerHTML = '';
+    if(!lista.length){ el.innerHTML = '<div class="list"><div class="empty">nenhuma viagem planejada ainda</div></div>'; return; }
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const ord = lista.map((v,i)=>({v,i})).sort((a,b)=>{
+      const da = a.v.ida || '9999', db = b.v.ida || '9999';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    ord.forEach(({v,i})=>{
+      const pass = Number(v.passagem)||0, parc = Math.max(1, parseInt(v.parcelas)||1);
+      const hosp = Number(v.hosp)||0, gastar = Number(v.gastar)||0, outros = Number(v.outros)||0;
+      const guardado = Number(v.guardado)||0;
+      const total = pass + hosp + gastar + outros;
+      const card = document.createElement('div');
+      card.className = 'viagem';
+      const head = document.createElement('div');
+      head.className = 'viagemHead';
+      const tit = document.createElement('div');
+      const h = document.createElement('h3');
+      h.textContent = String(v.destino);
+      tit.appendChild(h);
+      const ida = v.ida ? dataLocal(v.ida) : null, volta = v.volta ? dataLocal(v.volta) : null;
+      let sub = '';
+      if(ida){ sub = fmtData(v.ida) + (volta ? ' → ' + fmtData(v.volta) : ''); }
+      if(ida && volta){ const n = diasEntre(ida, volta); if(n > 0) sub += ' · ' + n + (n === 1 ? ' noite' : ' noites'); }
+      let dias = null;
+      if(ida){
+        dias = diasEntre(hoje, ida);
+        sub += dias > 1 ? ' · faltam ' + dias + ' dias' : dias === 1 ? ' · é amanhã' : dias === 0 ? ' · é hoje' : ' · já passou';
+      }
+      if(!sub){ sub = 'sem data definida'; }
+      const m = document.createElement('span');
+      m.className = 'rowMeta'; m.textContent = sub;
+      tit.appendChild(m);
+      const del = document.createElement('button');
+      del.className = 'delBtn'; del.textContent = '✕';
+      del.setAttribute('aria-label','remover viagem');
+      del.onclick = ()=>{
+        if(!confirm('Remover a viagem "' + v.destino + '"?')) return;
+        lista.splice(i,1); saveList('viagens', lista); renderViagens();
+      };
+      head.appendChild(tit); head.appendChild(del);
+      card.appendChild(head);
+      function linha(rotulo, valor, cls){
+        const l = document.createElement('div');
+        l.className = 'vLinha' + (cls ? ' ' + cls : '');
+        const a = document.createElement('span'); a.textContent = rotulo;
+        const b = document.createElement('span'); b.textContent = valor;
+        l.appendChild(a); l.appendChild(b);
+        card.appendChild(l);
+      }
+      if(pass > 0){ linha('Passagem' + (parc > 1 ? ' (' + parc + 'x de ' + fmt(pass/parc) + ')' : ''), fmt(pass)); }
+      if(hosp > 0){ linha('Hospedagem', fmt(hosp)); }
+      if(gastar > 0){ linha('Dinheiro para gastar', fmt(gastar)); }
+      if(outros > 0){ linha('Outros', fmt(outros)); }
+      linha('Total da viagem', fmt(total), 'vTotal');
+      if(guardado > 0){ linha('Já guardado', fmt(guardado)); }
+      // quanto juntar por mês até a ida (fora a passagem, que já está parcelada)
+      const semPassagem = Math.max(0, hosp + gastar + outros - guardado);
+      if(dias !== null && dias > 0 && semPassagem > 0){
+        const meses = Math.max(1, Math.ceil(dias / 30));
+        const dica = document.createElement('div');
+        dica.className = 'vDica';
+        dica.textContent = 'Para juntar até a ida: ' + fmt(semPassagem) + (pass > 0 ? ' (fora a passagem)' : '') +
+          ' → ' + fmt(semPassagem / meses) + '/mês por ' + meses + (meses === 1 ? ' mês' : ' meses');
+        card.appendChild(dica);
+      }
+      if(v.obs){
+        const o = document.createElement('div');
+        o.className = 'vObs'; o.textContent = String(v.obs);
+        card.appendChild(o);
+      }
+      el.appendChild(card);
+    });
+  }
+
+  document.getElementById('addViagemBtn').addEventListener('click', ()=>{
+    const destino = document.getElementById('vDestino').value.trim();
+    if(!destino) return;
+    const num = id => parseFloat(document.getElementById(id).value) || 0;
+    const nova = {
+      destino,
+      ida: document.getElementById('vIda').value || '',
+      volta: document.getElementById('vVolta').value || '',
+      passagem: num('vPassagem'),
+      parcelas: Math.max(1, parseInt(document.getElementById('vParcelas').value) || 1),
+      hosp: num('vHosp'), gastar: num('vGastar'), outros: num('vOutros'), guardado: num('vGuardado'),
+      obs: document.getElementById('vObs').value.trim()
+    };
+    const lista = loadList('viagens');
+    lista.push(nova);
+    saveList('viagens', lista);
+    ['vDestino','vIda','vVolta','vPassagem','vHosp','vGastar','vOutros','vGuardado','vObs'].forEach(id=>{ document.getElementById(id).value = ''; });
+    document.getElementById('vParcelas').value = '1';
+    renderViagens();
+  });
+
+  const abas = {compras: document.getElementById('abaCompras'), viagens: document.getElementById('abaViagens')};
+  function mostrarAba(n){
+    if(!abas[n]){ n = 'compras'; }
+    Object.keys(abas).forEach(k=>{ abas[k].style.display = k === n ? 'block' : 'none'; });
+    document.querySelectorAll('.tab').forEach(b=>{
+      const on = b.dataset.aba === n;
+      b.classList.toggle('ativa', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    safeSet('abaPlanejamento', n);
+  }
+  document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click', ()=>mostrarAba(b.dataset.aba)));
+  mostrarAba(safeGet('abaPlanejamento') || 'compras');
+  renderCompras();
+  renderViagens();
+
   // ---------- Backup ----------
   const BACKUP_APP = 'painel-financeiro-bruna';
-  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas';
+  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens';
   const backupInfo = document.getElementById('backupInfo');
   const backupMsg = document.getElementById('backupMsg');
 
@@ -551,7 +807,7 @@
       currentMes = loadMes();
       sel.value = currentMes;
       rendaIn.value = loadRenda();
-      render();
+      render(); renderCompras(); renderViagens();
       showBackupMsg('Backup importado com sucesso (' + qtd + ' blocos de dados).', false);
     };
     reader.readAsText(file);
