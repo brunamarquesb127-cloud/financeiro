@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2c2c2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Financeiro">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Painel Financeiro - Bruna</title>
+<style>
+  :root{
+    --bg:#f7f6f2; --card:#ffffff; --border:#e3e1da; --border-strong:#c9c6bb;
+    --text:#2c2c2a; --text-secondary:#5f5e5a; --text-muted:#888780;
+    --accent:#0c447c; --danger:#791f1f;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:max(24px,env(safe-area-inset-top)) 16px max(60px,env(safe-area-inset-bottom)); background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--text-muted);margin:0 0 8px}
+  .warn{font-size:12px;color:#8a6d00;background:#fff6db;border:0.5px solid #f0e0a0;border-radius:6px;padding:8px 10px;margin:0 0 20px;display:none}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  select, input, button{
+    font-family:inherit; font-size:14px; border:0.5px solid var(--border-strong);
+    border-radius:var(--radius); padding:8px 10px; background:var(--card); color:var(--text);
+  }
+  select{font-weight:600;min-width:160px}
+  .rendaBox{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary)}
+  .rendaBox input{width:100px}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px}
+  .card{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:14px}
+  .card p:first-child{font-size:12px;color:var(--text-secondary);margin:0 0 6px}
+  .card p:last-child{font-size:20px;font-weight:600;margin:0}
+  .neg{color:var(--danger)}
+  h2{font-size:14px;font-weight:600;margin:0 0 8px}
+  .hint{font-size:12px;color:var(--text-muted);margin:-4px 0 8px}
+  .list{background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;font-size:14px;border-bottom:0.5px solid var(--border)}
+  .row:last-child{border-bottom:none}
+  .rowMeta{font-size:11px;color:var(--text-muted);display:block}
+  .rowRight{display:flex;align-items:center;gap:8px}
+  .empty{padding:14px;font-size:13px;color:var(--text-muted)}
+  .addRow{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .addRow input[type=text]{flex:1;min-width:120px}
+  .addRow input[type=number]{width:90px}
+  .addRow select{width:auto}
+  .parcRow{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);margin-bottom:8px}
+  .parcRow input[type=number]{width:60px}
+  button{cursor:pointer}
+  button:hover{background:var(--bg)}
+  .addBtn{background:var(--text);color:#fff;border:none;font-weight:600;white-space:nowrap}
+  .addBtn:hover{opacity:0.9;background:var(--text)}
+  .delBtn{border:none;background:transparent;color:var(--text-muted);font-size:16px;padding:2px 6px}
+  .delBtn:hover{color:var(--danger)}
+  .section{margin-bottom:24px}
+  .resumo{font-size:12px;color:var(--text-secondary);margin-bottom:8px}
+  .backupBtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .backupBtns button{font-weight:600}
+  .backupInfo{font-size:12px;color:var(--text-secondary)}
+  .backupInfo.alerta{color:#8a6d00;background:#fff6db;border:0.5px solid #f0e0a0;border-radius:6px;padding:8px 10px}
+  .backupMsg{font-size:12px;margin-top:8px;color:var(--text-secondary)}
+  .backupMsg.erro{color:var(--danger)}
+  @media (max-width:480px){ .cards{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Painel financeiro</h1>
+  <p class="sub">Dados salvos neste navegador — abra sempre pelo Safari/Chrome, pelo mesmo aparelho, e faça backup de vez em quando (no fim da página)</p>
+  <p class="warn" id="warnBox">Não consegui salvar os dados neste modo de visualização. Abra o arquivo pelo Safari (ou Chrome) para os lançamentos ficarem guardados entre as visitas.</p>
+
+  <div class="topbar">
+    <select id="mesSel"></select>
+    <div class="rendaBox">
+      <span>Renda base</span>
+      <input id="renda" type="number" value="3000">
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><p>Renda total</p><p id="rendaTotalOut">R$0</p></div>
+    <div class="card"><p>Compromissos fixos</p><p id="fixoOut">R$0</p></div>
+    <div class="card"><p>Gastos do dia a dia</p><p id="gastosOut">R$0</p></div>
+    <div class="card"><p>Gastos loja</p><p id="gastosLojaOut">R$0</p></div>
+    <div class="card"><p>Disponível</p><p id="saldoOut">R$0</p></div>
+  </div>
+
+  <div class="section">
+    <h2>Compromissos fixos do mês</h2>
+    <div id="fixosList" class="list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Entradas extras</h2>
+    <div id="entradasFixasList" class="list"></div>
+    <div class="addRow">
+      <input id="descExtraIn" type="text" placeholder="Ex: bico, venda">
+      <input id="valExtraIn" type="number" placeholder="R$">
+      <button id="addExtraBtn" class="addBtn">+ adicionar</button>
+    </div>
+    <div id="extrasList" class="list"></div>
+  </div>
+
+  <div class="section" id="parcSection" style="display:none">
+    <h2>Parcelas de compras anteriores</h2>
+    <p class="hint">Projetadas automaticamente a partir dos gastos parcelados lançados em meses anteriores. Já estão somadas em “Gastos do dia a dia”.</p>
+    <div id="parcResumo" class="resumo"></div>
+    <div id="parcList" class="list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Registrar gasto do dia</h2>
+    <div class="addRow">
+      <input id="descIn" type="text" placeholder="Ex: mercado, uber">
+      <input id="valIn" type="number" placeholder="R$">
+      <select id="cartaoIn">
+        <option value="Dinheiro/Débito">Dinheiro/Débito</option>
+        <option value="Nubank">Nubank</option>
+        <option value="Inter">Inter</option>
+        <option value="Outro">Outro cartão</option>
+      </select>
+      <select id="tipoIn">
+        <option value="Pessoal">Pessoal</option>
+        <option value="Loja">Loja</option>
+      </select>
+    </div>
+    <div class="parcRow">
+      <label><input id="parceladoIn" type="checkbox"> Parcelado</label>
+      <span id="parcCampos" style="display:none">
+        parcela <input id="parcAtualIn" type="number" min="1" value="1"> de <input id="parcTotalIn" type="number" min="1" value="2">
+      </span>
+    </div>
+    <p class="hint" id="parcHint" style="display:none">Informe o valor <b>de uma parcela</b>. As parcelas que faltam entram sozinhas nos meses seguintes.</p>
+    <button id="addBtn" class="addBtn" style="margin-bottom:8px">+ adicionar gasto</button>
+    <div id="tipoResumo" class="resumo"></div>
+    <div id="gastosList" class="list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Backup dos dados</h2>
+    <p class="hint">Salva todos os lançamentos num arquivo. Guarde no iCloud/Drive. Para restaurar (ou levar para outro aparelho), use “Importar backup”.</p>
+    <div class="backupBtns">
+      <button id="exportBtn">Exportar backup</button>
+      <button id="importBtn">Importar backup</button>
+      <input id="importFile" type="file" accept=".json,application/json" style="display:none">
+    </div>
+    <div id="backupInfo" class="backupInfo"></div>
+    <div id="backupMsg" class="backupMsg"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const MESES = ["Agosto 2026","Setembro 2026","Outubro 2026","Novembro 2026","Dezembro 2026","Janeiro 2027","Fevereiro 2027","Março 2027","Abril 2027","Maio 2027","Junho 2027"];
+  const FIXOS_BASE = {
+    "Agosto 2026": [
+      {n:"Nubank",v:1388.40},{n:"Inter",v:1226.02},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100}
+    ],
+    "Setembro 2026": [
+      {n:"Nubank",v:615.77},{n:"Inter",v:1087.57},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Outubro 2026": [
+      {n:"Nubank",v:558.02},{n:"Inter",v:898.46},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Novembro 2026": [
+      {n:"Nubank",v:448.03},{n:"Inter",v:898.46},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Dezembro 2026": [
+      {n:"Nubank",v:22.90},{n:"Inter",v:316.46},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Janeiro 2027": [
+      {n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Fevereiro 2027": [
+      {n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Março 2027": [
+      {n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Abril 2027": [
+      {n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Maio 2027": [
+      {n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ],
+    "Junho 2027": [
+      {n:"Ração",v:100},{n:"Reserva",v:150},{n:"Academia",v:200}
+    ]
+  };
+  const ENTRADAS_FIXAS_BASE = {
+    "Agosto 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
+    "Setembro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
+    "Outubro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
+    "Novembro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
+    "Dezembro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}]
+  };
+
+  // In-memory fallback in case localStorage is blocked (e.g. Quick Look preview)
+  let storageBlocked = false;
+  const memoryStore = {};
+
+  function safeGet(key){
+    try{
+      const v = localStorage.getItem(key);
+      return v;
+    }catch(e){
+      storageBlocked = true;
+      return (key in memoryStore) ? memoryStore[key] : null;
+    }
+  }
+  function safeSet(key, val){
+    try{
+      localStorage.setItem(key, val);
+    }catch(e){
+      storageBlocked = true;
+      memoryStore[key] = val;
+    }
+  }
+  function safeRemove(key){
+    try{ localStorage.removeItem(key); }catch(e){ storageBlocked = true; }
+    delete memoryStore[key];
+  }
+
+  function loadList(key){
+    const raw = safeGet(key);
+    try{
+      const v = raw ? JSON.parse(raw) : [];
+      return Array.isArray(v) ? v : [];
+    }catch(e){ return []; }
+  }
+  function saveList(key, arr){ safeSet(key, JSON.stringify(arr)); }
+  function loadRenda(){ return safeGet('renda') || '3000'; }
+  function saveRenda(v){ safeSet('renda', v); }
+  function loadMes(){ const m = safeGet('mesAtual'); return MESES.indexOf(m) >= 0 ? m : MESES[0]; }
+  function saveMes(m){ safeSet('mesAtual', m); }
+
+  // ---------- Parcelamentos ----------
+  // 'parcelas' = lista de compras parceladas: {id, d, v, cartao, tipo, mes, parcAtual, parcTotal}
+  // v = valor de UMA parcela; mes = mês em que foi lançada (parcela parcAtual).
+  function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  function loadParcelamentos(){ return loadList('parcelas'); }
+  function saveParcelamentos(a){ saveList('parcelas', a); }
+
+  function parcelasDoMes(mes){
+    const idx = MESES.indexOf(mes);
+    const out = [];
+    loadParcelamentos().forEach(p=>{
+      const s = MESES.indexOf(p.mes);
+      if(s < 0 || idx <= s) return;
+      const n = p.parcAtual + (idx - s);
+      if(n <= p.parcTotal){
+        out.push({pid:p.id, d:p.d, v:Number(p.v)||0, cartao:p.cartao, tipo:p.tipo, parcAtual:n, parcTotal:p.parcTotal});
+      }
+    });
+    return out;
+  }
+  function parcelasRestantes(p){
+    // quantas parcelas ainda cairão em meses futuros dentro da lista de meses
+    const s = MESES.indexOf(p.mes);
+    if(s < 0) return 0;
+    return Math.max(0, Math.min(p.parcTotal - p.parcAtual, MESES.length - 1 - s));
+  }
+
+  const sel = document.getElementById('mesSel');
+  MESES.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;sel.appendChild(o);});
+
+  const rendaIn = document.getElementById('renda');
+  const fixosList = document.getElementById('fixosList');
+  const gastosList = document.getElementById('gastosList');
+  const entradasFixasList = document.getElementById('entradasFixasList');
+  const extrasList = document.getElementById('extrasList');
+  const parcList = document.getElementById('parcList');
+  const fixoOut = document.getElementById('fixoOut');
+  const gastosOut = document.getElementById('gastosOut');
+  const saldoOut = document.getElementById('saldoOut');
+  const rendaTotalOut = document.getElementById('rendaTotalOut');
+  const parceladoIn = document.getElementById('parceladoIn');
+  const parcCampos = document.getElementById('parcCampos');
+  const parcHint = document.getElementById('parcHint');
+
+  function fmt(v){ return 'R$' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  let currentMes = loadMes();
+  sel.value = currentMes;
+  rendaIn.value = loadRenda();
+
+  parceladoIn.addEventListener('change', ()=>{
+    parcCampos.style.display = parceladoIn.checked ? 'inline-flex' : 'none';
+    parcHint.style.display = parceladoIn.checked ? 'block' : 'none';
+  });
+
+  // Monta uma linha de lista usando textContent (sem injetar HTML)
+  function makeRow(desc, meta, valTxt, onDel, delLabel){
+    const row = document.createElement('div');
+    row.className = 'row';
+    const left = document.createElement('span');
+    left.appendChild(document.createTextNode(desc));
+    if(meta){
+      const m = document.createElement('span');
+      m.className = 'rowMeta';
+      m.textContent = meta;
+      left.appendChild(m);
+    }
+    const right = document.createElement('span');
+    right.className = 'rowRight';
+    const valSpan = document.createElement('span');
+    valSpan.textContent = valTxt;
+    right.appendChild(valSpan);
+    if(onDel){
+      const del = document.createElement('button');
+      del.className = 'delBtn'; del.textContent = '✕';
+      del.setAttribute('aria-label', delLabel || 'remover');
+      del.onclick = onDel;
+      right.appendChild(del);
+    }
+    row.appendChild(left); row.appendChild(right);
+    return row;
+  }
+
+  function render(){
+    if(storageBlocked){ document.getElementById('warnBox').style.display = 'block'; }
+
+    const fixos = FIXOS_BASE[currentMes] || [];
+    fixosList.innerHTML = '';
+    let totalFixo = 0;
+    if(fixos.length===0){ fixosList.innerHTML = '<div class="empty">nenhum compromisso fixo neste mês</div>'; }
+    fixos.forEach(f=>{
+      totalFixo += f.v;
+      fixosList.appendChild(makeRow(f.n, null, fmt(f.v)));
+    });
+    fixoOut.textContent = fmt(totalFixo);
+
+    const entradasFixas = ENTRADAS_FIXAS_BASE[currentMes] || [];
+    entradasFixasList.innerHTML = '';
+    let totalEntradasFixas = 0;
+    if(entradasFixas.length===0){ entradasFixasList.innerHTML = '<div class="empty">sem entradas fixas neste mês</div>'; }
+    entradasFixas.forEach(e=>{
+      totalEntradasFixas += e.v;
+      entradasFixasList.appendChild(makeRow(e.n, null, '+'+fmt(e.v)));
+    });
+
+    const extras = loadList('extras:'+currentMes);
+    extrasList.innerHTML = '';
+    let totalExtras = 0;
+    if(extras.length===0){ extrasList.innerHTML = '<div class="empty">nenhum extra registrado ainda</div>'; }
+    extras.forEach((e,i)=>{
+      const v = Number(e.v)||0;
+      totalExtras += v;
+      extrasList.appendChild(makeRow(String(e.d), null, '+'+fmt(v), ()=>{
+        extras.splice(i,1); saveList('extras:'+currentMes, extras); render();
+      }, 'remover entrada'));
+    });
+
+    // Parcelas projetadas de meses anteriores
+    const projetadas = parcelasDoMes(currentMes);
+    const parcSection = document.getElementById('parcSection');
+    parcList.innerHTML = '';
+    let totalProj = 0, projPessoal = 0, projLoja = 0;
+    const porCartao = {};
+    projetadas.forEach(p=>{
+      totalProj += p.v;
+      if(p.tipo === 'Loja'){ projLoja += p.v; } else if(p.tipo === 'Pessoal'){ projPessoal += p.v; }
+      const c = p.cartao || 'Dinheiro/Débito';
+      porCartao[c] = (porCartao[c]||0) + p.v;
+      let meta = c;
+      if(p.tipo){ meta += ' · ' + p.tipo; }
+      meta += ' · parcela '+p.parcAtual+'/'+p.parcTotal;
+      parcList.appendChild(makeRow(p.d, meta, fmt(p.v), ()=>{
+        if(!confirm('Parar de projetar "'+p.d+'" nos meses seguintes?\n\nIsso remove as parcelas projetadas (inclusive deste mês). O gasto lançado no mês original continua lá.')) return;
+        saveParcelamentos(loadParcelamentos().filter(x=>x.id !== p.pid));
+        render();
+      }, 'parar de projetar parcelas'));
+    });
+    if(projetadas.length === 0){
+      parcSection.style.display = 'none';
+    } else {
+      parcSection.style.display = 'block';
+      document.getElementById('parcResumo').textContent = 'Total: ' + fmt(totalProj) + '  ·  ' +
+        Object.keys(porCartao).map(c=>c+': '+fmt(porCartao[c])).join('  ·  ');
+    }
+
+    const gastos = loadList('gastos:'+currentMes);
+    gastosList.innerHTML = '';
+    let totalGastos = totalProj;
+    let totalPessoal = projPessoal, totalLoja = projLoja;
+    if(gastos.length===0){ gastosList.innerHTML = '<div class="empty">nenhum gasto registrado ainda</div>'; }
+    gastos.forEach((g,i)=>{
+      const v = Number(g.v)||0;
+      totalGastos += v;
+      if(g.tipo === 'Loja'){ totalLoja += v; } else if(g.tipo === 'Pessoal'){ totalPessoal += v; }
+      let metaTxt = g.cartao || 'Dinheiro/Débito';
+      if(g.tipo){ metaTxt += ' · ' + g.tipo; }
+      if(g.parcelado){ metaTxt += ' · parcela '+g.parcAtual+'/'+g.parcTotal; }
+      gastosList.appendChild(makeRow(String(g.d), metaTxt, fmt(v), ()=>{
+        if(g.pid){
+          const restantes = loadParcelamentos().filter(p=>p.id === g.pid).length;
+          if(restantes && !confirm('Esse gasto é parcelado. Remover também apaga as parcelas projetadas dos meses seguintes. Continuar?')) return;
+          saveParcelamentos(loadParcelamentos().filter(p=>p.id !== g.pid));
+        }
+        gastos.splice(i,1); saveList('gastos:'+currentMes, gastos); render();
+      }, 'remover gasto'));
+    });
+    gastosOut.textContent = fmt(totalGastos);
+    document.getElementById('gastosLojaOut').textContent = fmt(totalLoja);
+    const tipoResumoEl = document.getElementById('tipoResumo');
+    if(totalPessoal > 0 || totalLoja > 0){
+      tipoResumoEl.textContent = 'Pessoal: ' + fmt(totalPessoal) + '  ·  Loja: ' + fmt(totalLoja);
+    } else {
+      tipoResumoEl.textContent = '';
+    }
+
+    const rendaBase = parseFloat(rendaIn.value) || 0;
+    const rendaTotal = rendaBase + totalEntradasFixas + totalExtras;
+    rendaTotalOut.textContent = fmt(rendaTotal);
+    const saldo = rendaTotal - totalFixo - totalGastos;
+    saldoOut.textContent = fmt(saldo);
+    saldoOut.className = saldo < 0 ? 'neg' : '';
+
+    renderBackupInfo();
+  }
+
+  sel.addEventListener('change', ()=>{ currentMes = sel.value; saveMes(currentMes); render(); });
+  rendaIn.addEventListener('input', ()=>{ saveRenda(rendaIn.value); render(); });
+
+  document.getElementById('addBtn').addEventListener('click', ()=>{
+    const d = document.getElementById('descIn').value.trim();
+    const v = parseFloat(document.getElementById('valIn').value);
+    if(!d || !v) return;
+    const cartao = document.getElementById('cartaoIn').value;
+    const tipo = document.getElementById('tipoIn').value;
+    const parcelado = parceladoIn.checked;
+    let parcAtual = parcelado ? Math.max(1, parseInt(document.getElementById('parcAtualIn').value)||1) : null;
+    let parcTotal = parcelado ? Math.max(1, parseInt(document.getElementById('parcTotalIn').value)||1) : null;
+    if(parcelado && parcAtual > parcTotal){ parcAtual = parcTotal; }
+    const gasto = {d,v,cartao,tipo,parcelado,parcAtual,parcTotal};
+    if(parcelado && parcTotal > parcAtual){
+      const id = newId();
+      gasto.pid = id;
+      const lista = loadParcelamentos();
+      lista.push({id, d, v, cartao, tipo, mes:currentMes, parcAtual, parcTotal});
+      saveParcelamentos(lista);
+    }
+    const gastos = loadList('gastos:'+currentMes);
+    gastos.push(gasto);
+    saveList('gastos:'+currentMes, gastos);
+    document.getElementById('descIn').value = '';
+    document.getElementById('valIn').value = '';
+    parceladoIn.checked = false;
+    parcCampos.style.display = 'none';
+    parcHint.style.display = 'none';
+    render();
+  });
+
+  document.getElementById('addExtraBtn').addEventListener('click', ()=>{
+    const d = document.getElementById('descExtraIn').value.trim();
+    const v = parseFloat(document.getElementById('valExtraIn').value);
+    if(!d || !v) return;
+    const extras = loadList('extras:'+currentMes);
+    extras.push({d,v});
+    saveList('extras:'+currentMes, extras);
+    document.getElementById('descExtraIn').value = '';
+    document.getElementById('valExtraIn').value = '';
+    render();
+  });
+
+  // ---------- Backup ----------
+  const BACKUP_APP = 'painel-financeiro-bruna';
+  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas';
+  const backupInfo = document.getElementById('backupInfo');
+  const backupMsg = document.getElementById('backupMsg');
+
+  function allDataKeys(){
+    const ks = [];
+    try{ for(let i=0;i<localStorage.length;i++){ ks.push(localStorage.key(i)); } }catch(e){ storageBlocked = true; }
+    Object.keys(memoryStore).forEach(k=>{ if(ks.indexOf(k) < 0) ks.push(k); });
+    return ks.filter(isDataKey);
+  }
+
+  function showBackupMsg(txt, erro){
+    backupMsg.textContent = txt;
+    backupMsg.className = 'backupMsg' + (erro ? ' erro' : '');
+  }
+
+  function renderBackupInfo(){
+    const iso = safeGet('ultimoBackup');
+    const dt = iso ? new Date(iso) : null;
+    if(!dt || isNaN(dt.getTime())){
+      backupInfo.textContent = 'Você ainda não fez nenhum backup.';
+      backupInfo.className = 'backupInfo alerta';
+      return;
+    }
+    const dias = Math.floor((Date.now() - dt.getTime()) / 86400000);
+    const quando = dias <= 0 ? 'hoje' : (dias === 1 ? 'ontem' : 'há '+dias+' dias');
+    backupInfo.textContent = 'Último backup: ' + dt.toLocaleDateString('pt-BR') + ' (' + quando + ')';
+    backupInfo.className = 'backupInfo' + (dias >= 7 ? ' alerta' : '');
+    if(dias >= 7){ backupInfo.textContent += ' — já faz um tempo, vale fazer outro.'; }
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+    const dados = {};
+    allDataKeys().forEach(k=>{ const v = safeGet(k); if(v !== null) dados[k] = v; });
+    if(Object.keys(dados).length === 0){ showBackupMsg('Não há dados para exportar ainda.', true); return; }
+    const payload = {app:BACKUP_APP, versao:1, exportadoEm:new Date().toISOString(), dados};
+    const hoje = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const nome = 'backup-painel-financeiro-' + hoje.getFullYear() + '-' + pad(hoje.getMonth()+1) + '-' + pad(hoje.getDate()) + '.json';
+    try{
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = nome;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      safeSet('ultimoBackup', new Date().toISOString());
+      showBackupMsg('Backup gerado: ' + nome + '. Salve o arquivo em um lugar seguro (iCloud, Drive).', false);
+      renderBackupInfo();
+    }catch(e){
+      showBackupMsg('Não consegui gerar o arquivo neste modo. Abra o painel pelo Safari/Chrome e tente de novo.', true);
+    }
+  });
+
+  const importFile = document.getElementById('importFile');
+  document.getElementById('importBtn').addEventListener('click', ()=>{ importFile.click(); });
+  importFile.addEventListener('change', ()=>{
+    const file = importFile.files && importFile.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onerror = ()=>{ showBackupMsg('Não consegui ler o arquivo.', true); importFile.value = ''; };
+    reader.onload = ()=>{
+      importFile.value = '';
+      let payload;
+      try{ payload = JSON.parse(reader.result); }catch(e){ showBackupMsg('Arquivo inválido: não é um JSON.', true); return; }
+      if(!payload || payload.app !== BACKUP_APP || !payload.dados || typeof payload.dados !== 'object'){
+        showBackupMsg('Esse arquivo não parece ser um backup deste painel.', true); return;
+      }
+      const novos = {};
+      for(const k of Object.keys(payload.dados)){
+        if(!isDataKey(k)) continue;
+        const raw = payload.dados[k];
+        if(typeof raw !== 'string'){ showBackupMsg('Backup corrompido (valor inesperado em "'+k+'").', true); return; }
+        if(k !== 'renda' && k !== 'mesAtual'){
+          let parsed;
+          try{ parsed = JSON.parse(raw); }catch(e){ showBackupMsg('Backup corrompido (dados ilegíveis em "'+k+'").', true); return; }
+          if(!Array.isArray(parsed)){ showBackupMsg('Backup corrompido (formato inesperado em "'+k+'").', true); return; }
+        }
+        novos[k] = raw;
+      }
+      const qtd = Object.keys(novos).length;
+      if(qtd === 0){ showBackupMsg('O backup não tem nenhum dado.', true); return; }
+      const data = payload.exportadoEm ? new Date(payload.exportadoEm) : null;
+      const dataTxt = data && !isNaN(data.getTime()) ? data.toLocaleDateString('pt-BR') : 'data desconhecida';
+      if(!confirm('Importar backup de ' + dataTxt + '?\n\nIsso SUBSTITUI todos os dados que estão agora neste aparelho.')) return;
+      allDataKeys().forEach(safeRemove);
+      Object.keys(novos).forEach(k=>safeSet(k, novos[k]));
+      currentMes = loadMes();
+      sel.value = currentMes;
+      rendaIn.value = loadRenda();
+      render();
+      showBackupMsg('Backup importado com sucesso (' + qtd + ' blocos de dados).', false);
+    };
+    reader.readAsText(file);
+  });
+
+  render();
+
+  // PWA: registra o service worker só quando servido por http(s)
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
