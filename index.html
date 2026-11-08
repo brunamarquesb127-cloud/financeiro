@@ -159,22 +159,17 @@
 
 <script>
 (function(){
-  const MESES = ["Agosto 2026","Setembro 2026","Outubro 2026","Novembro 2026","Dezembro 2026","Janeiro 2027","Fevereiro 2027","Março 2027","Abril 2027","Maio 2027","Junho 2027"];
+  const MESES = ["Dezembro 2026","Janeiro 2027","Fevereiro 2027","Março 2027","Abril 2027","Maio 2027","Junho 2027"];
+  const NOMES_MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  // número absoluto do mês (ano*12+mês); funciona também para meses que já saíram da lista
+  function mesNum(s){
+    const p = String(s).split(' ');
+    const i = NOMES_MES.indexOf(p[0]); const a = parseInt(p[1]);
+    return (i < 0 || isNaN(a)) ? -1 : a*12 + i;
+  }
   const FIXOS_BASE = {
-    "Agosto 2026": [
-      {n:"Nubank",v:1388.40},{n:"Inter",v:1226.02},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100}
-    ],
-    "Setembro 2026": [
-      {n:"Nubank",v:615.77},{n:"Inter",v:1087.57},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
-    ],
-    "Outubro 2026": [
-      {n:"Nubank",v:558.02},{n:"Inter",v:898.46},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
-    ],
-    "Novembro 2026": [
-      {n:"Nubank",v:448.03},{n:"Inter",v:898.46},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
-    ],
     "Dezembro 2026": [
-      {n:"Nubank",v:22.90},{n:"Inter",v:316.46},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
+      {n:"Nubank",v:2077.38},{n:"Inter",v:662.68},{n:"Ração",v:100},{n:"Prima (Airbnb)",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
     ],
     "Janeiro 2027": [
       {n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
@@ -196,10 +191,6 @@
     ]
   };
   const ENTRADAS_FIXAS_BASE = {
-    "Agosto 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
-    "Setembro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
-    "Outubro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
-    "Novembro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}],
     "Dezembro 2026": [{n:"Bela",v:72},{n:"Thiago",v:72}]
   };
 
@@ -250,10 +241,10 @@
   function saveParcelamentos(a){ saveList('parcelas', a); }
 
   function parcelasDoMes(mes){
-    const idx = MESES.indexOf(mes);
+    const idx = mesNum(mes);
     const out = [];
     loadParcelamentos().forEach(p=>{
-      const s = MESES.indexOf(p.mes);
+      const s = mesNum(p.mes);
       if(s < 0 || idx <= s) return;
       const n = p.parcAtual + (idx - s);
       if(n <= p.parcTotal){
@@ -262,13 +253,6 @@
     });
     return out;
   }
-  function parcelasRestantes(p){
-    // quantas parcelas ainda cairão em meses futuros dentro da lista de meses
-    const s = MESES.indexOf(p.mes);
-    if(s < 0) return 0;
-    return Math.max(0, Math.min(p.parcTotal - p.parcAtual, MESES.length - 1 - s));
-  }
-
   const sel = document.getElementById('mesSel');
   MESES.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;sel.appendChild(o);});
 
