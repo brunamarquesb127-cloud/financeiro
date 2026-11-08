@@ -88,6 +88,16 @@
   .vTotal{border-top:0.5px solid var(--border);margin-top:6px;padding-top:6px;font-weight:600}
   .vDica{font-size:12px;color:var(--accent);margin-top:6px}
   .vObs{font-size:12px;color:var(--text-secondary);margin-top:6px}
+  .thumb{width:44px;height:44px;flex:0 0 44px;padding:0;border-radius:6px;overflow:hidden;border:0.5px solid var(--border-strong);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb.vazio{border-style:dashed;opacity:.7}
+  .feito .thumb{opacity:.5}
+  .fotoView{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;align-items:center;justify-content:center;padding:16px}
+  .fotoBox{background:var(--card);border-radius:12px;padding:12px;max-width:520px;width:100%;max-height:100%;display:flex;flex-direction:column;gap:10px}
+  .fotoBox img{width:100%;max-height:65vh;object-fit:contain;border-radius:8px;background:var(--bg)}
+  .fotoTit{font-weight:600;font-size:14px}
+  .fotoBtns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  #fotoPrev{display:none;width:64px;height:64px;object-fit:cover;border-radius:6px;margin-top:4px}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -184,6 +194,7 @@
           </select>
         </label>
         <label class="full">Quando pretendo comprar<select id="compraMes"><option value="">Sem mês definido</option></select></label>
+        <label class="full">Foto (opcional)<input id="compraFoto" type="file" accept="image/*"><img id="fotoPrev" alt="prévia da foto"></label>
       </div>
       <button id="addCompraBtn" class="addBtn" style="margin-bottom:8px">+ adicionar à lista</button>
       <div id="comprasResumo" class="resumo"></div>
@@ -221,6 +232,19 @@
     <div id="backupMsg" class="backupMsg"></div>
   </div>
 </div>
+
+<div id="fotoView" class="fotoView" style="display:none" role="dialog" aria-modal="true">
+  <div class="fotoBox">
+    <div id="fotoViewTit" class="fotoTit"></div>
+    <img id="fotoViewImg" alt="">
+    <div class="fotoBtns">
+      <button id="fotoTrocar" type="button">Trocar foto</button>
+      <button id="fotoRemover" type="button">Remover foto</button>
+      <button id="fotoFechar" type="button" class="addBtn">Fechar</button>
+    </div>
+  </div>
+</div>
+<input id="fotoRowIn" type="file" accept="image/*" style="display:none">
 
 <script>
 (function(){
@@ -529,6 +553,108 @@
   const compraMesSel = document.getElementById('compraMes');
   MESES.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; compraMesSel.appendChild(o); });
 
+  // ---------- Fotos dos itens de compra ----------
+  // Salva a lista de compras avisando se acabar o espaço do navegador (fotos ocupam espaço)
+  function saveCompras(lista){
+    const raw = JSON.stringify(lista);
+    try{ localStorage.setItem('compras', raw); return true; }
+    catch(e){
+      if(e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014)){
+        alert('Acabou o espaço para guardar fotos neste aparelho. Remova a foto de algum item (ou itens já comprados) e tente de novo.');
+        return false;
+      }
+      storageBlocked = true; memoryStore['compras'] = raw; return true;
+    }
+  }
+  // Reduz a foto (lado maior 480px, JPEG) para caber no armazenamento do celular
+  function lerFotoReduzida(file, max, q){
+    max = max || 480; q = q || 0.72;
+    return new Promise((res, rej)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        const s = Math.min(1, max / Math.max(w, h, 1));
+        w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        URL.revokeObjectURL(url);
+        if(!ctx){ rej(new Error('canvas')); return; }
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        try{ res(c.toDataURL('image/jpeg', q)); }catch(e){ rej(e); }
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('img')); };
+      img.src = url;
+    });
+  }
+  function fotoValida(s){ return typeof s === 'string' && s.indexOf('data:image/') === 0; }
+
+  const fotoRowIn = document.getElementById('fotoRowIn');
+  const fotoView = document.getElementById('fotoView');
+  const fotoViewImg = document.getElementById('fotoViewImg');
+  let fotoAlvo = -1, fotoAberta = -1;
+
+  function fotoThumb(c, i){
+    const b = document.createElement('button');
+    b.type = 'button';
+    if(fotoValida(c.foto)){
+      b.className = 'thumb';
+      b.setAttribute('aria-label', 'ver foto');
+      const im = document.createElement('img');
+      im.src = c.foto; im.alt = '';
+      b.appendChild(im);
+      b.onclick = ()=>abrirFoto(i);
+    } else {
+      b.className = 'thumb vazio';
+      b.textContent = '📷';
+      b.setAttribute('aria-label', 'adicionar foto');
+      b.onclick = ()=>escolherFoto(i);
+    }
+    return b;
+  }
+  function escolherFoto(i){ fotoAlvo = i; fotoRowIn.value = ''; fotoRowIn.click(); }
+  fotoRowIn.addEventListener('change', async ()=>{
+    const f = fotoRowIn.files && fotoRowIn.files[0];
+    if(!f || fotoAlvo < 0) return;
+    let foto;
+    try{ foto = await lerFotoReduzida(f); }catch(e){ alert('Não consegui ler essa foto. Tente outra.'); return; }
+    const lista = loadList('compras');
+    if(!lista[fotoAlvo]) return;
+    lista[fotoAlvo].foto = foto;
+    if(saveCompras(lista)){ fecharFoto(); renderCompras(); }
+  });
+  function abrirFoto(i){
+    const l = loadList('compras');
+    if(!l[i] || !fotoValida(l[i].foto)) return;
+    fotoAberta = i;
+    fotoViewImg.src = l[i].foto;
+    document.getElementById('fotoViewTit').textContent = String(l[i].d);
+    fotoView.style.display = 'flex';
+  }
+  function fecharFoto(){ fotoView.style.display = 'none'; fotoAberta = -1; fotoViewImg.removeAttribute('src'); }
+  fotoView.addEventListener('click', e=>{ if(e.target === fotoView) fecharFoto(); });
+  document.getElementById('fotoFechar').onclick = fecharFoto;
+  document.getElementById('fotoTrocar').onclick = ()=>{ escolherFoto(fotoAberta); };
+  document.getElementById('fotoRemover').onclick = ()=>{
+    if(!confirm('Remover a foto deste item?')) return;
+    const l = loadList('compras');
+    if(l[fotoAberta]){ delete l[fotoAberta].foto; saveCompras(l); }
+    fecharFoto(); renderCompras();
+  };
+  const compraFotoIn = document.getElementById('compraFoto');
+  const fotoPrev = document.getElementById('fotoPrev');
+  function limparPrevia(){
+    if(fotoPrev.src && fotoPrev.src.indexOf('blob:') === 0){ URL.revokeObjectURL(fotoPrev.src); }
+    fotoPrev.removeAttribute('src'); fotoPrev.style.display = 'none';
+  }
+  compraFotoIn.addEventListener('change', ()=>{
+    limparPrevia();
+    const f = compraFotoIn.files && compraFotoIn.files[0];
+    if(f){ fotoPrev.src = URL.createObjectURL(f); fotoPrev.style.display = 'block'; }
+  });
+
   function renderCompras(){
     const lista = loadList('compras');
     const el = document.getElementById('comprasList');
@@ -544,12 +670,12 @@
       if(c.feito){ comprado += v; } else { falta += v; porPrio[prio] += v; }
       const row = document.createElement('div');
       row.className = 'row' + (c.feito ? ' feito' : '');
-      const left = document.createElement('label');
+      const left = document.createElement('div');
       left.className = 'compraLeft';
       const cb = document.createElement('input');
       cb.type = 'checkbox'; cb.checked = !!c.feito;
       cb.setAttribute('aria-label','marcar como comprado');
-      cb.onchange = ()=>{ lista[i].feito = cb.checked; saveList('compras', lista); renderCompras(); };
+      cb.onchange = ()=>{ lista[i].feito = cb.checked; saveCompras(lista); renderCompras(); };
       const txt = document.createElement('span');
       txt.style.minWidth = '0';
       const d = document.createElement('span');
@@ -561,7 +687,7 @@
       meta.appendChild(pill);
       meta.appendChild(document.createTextNode(c.feito ? 'comprado' : (c.mes || 'sem mês definido')));
       txt.appendChild(d); txt.appendChild(meta);
-      left.appendChild(cb); left.appendChild(txt);
+      left.appendChild(cb); left.appendChild(fotoThumb(c, i)); left.appendChild(txt);
       const right = document.createElement('span');
       right.className = 'rowRight';
       const val = document.createElement('span');
@@ -569,7 +695,7 @@
       const del = document.createElement('button');
       del.className = 'delBtn'; del.textContent = '✕';
       del.setAttribute('aria-label','remover item');
-      del.onclick = ()=>{ lista.splice(i,1); saveList('compras', lista); renderCompras(); };
+      del.onclick = ()=>{ lista.splice(i,1); saveCompras(lista); renderCompras(); };
       right.appendChild(val); right.appendChild(del);
       row.appendChild(left); row.appendChild(right);
       el.appendChild(row);
@@ -582,17 +708,26 @@
     } else { resumo.textContent = ''; }
   }
 
-  document.getElementById('addCompraBtn').addEventListener('click', ()=>{
+  document.getElementById('addCompraBtn').addEventListener('click', async ()=>{
     const d = document.getElementById('compraDesc').value.trim();
     if(!d) return;
     const v = parseFloat(document.getElementById('compraVal').value) || 0;
     const prio = parseInt(document.getElementById('compraPrio').value) || 2;
     const mes = compraMesSel.value || '';
+    let foto = '';
+    if(compraFotoIn.files && compraFotoIn.files[0]){
+      try{ foto = await lerFotoReduzida(compraFotoIn.files[0]); }
+      catch(e){ alert('Não consegui ler essa foto. Tente outra ou adicione sem foto.'); return; }
+    }
     const lista = loadList('compras');
-    lista.push({d, v, prio, mes, feito:false});
-    saveList('compras', lista);
+    const item = {d, v, prio, mes, feito:false};
+    if(foto){ item.foto = foto; }
+    lista.push(item);
+    if(!saveCompras(lista)) return;
     document.getElementById('compraDesc').value = '';
     document.getElementById('compraVal').value = '';
+    compraFotoIn.value = '';
+    limparPrevia();
     renderCompras();
   });
 
