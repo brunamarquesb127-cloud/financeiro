@@ -98,6 +98,9 @@
   .fotoTit{font-weight:600;font-size:14px}
   .fotoBtns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
   #fotoPrev{display:none;width:64px;height:64px;object-fit:cover;border-radius:6px;margin-top:4px}
+  button.pill{border:none;cursor:pointer;font-family:inherit;line-height:1.4}
+  .mesSelItem{font-size:11px;padding:1px 4px;border-radius:6px;min-width:0;max-width:140px;font-weight:400;color:var(--text-muted)}
+  .valEdit{cursor:pointer;border:none;background:transparent;padding:2px 4px;font-size:14px;color:var(--text);border-bottom:1px dashed var(--border-strong);border-radius:0}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -682,16 +685,42 @@
       d.className = 'rowDesc'; d.textContent = String(c.d);
       const meta = document.createElement('span');
       meta.className = 'rowMeta';
-      const pill = document.createElement('span');
+      const pill = document.createElement('button');
+      pill.type = 'button';
       pill.className = 'pill p' + prio; pill.textContent = PRIO_NOME[prio];
+      pill.setAttribute('aria-label', 'prioridade ' + PRIO_NOME[prio] + ' (toque para trocar)');
+      pill.onclick = ()=>{ lista[i].prio = prio === 1 ? 2 : prio === 2 ? 3 : 1; saveCompras(lista); renderCompras(); };
       meta.appendChild(pill);
-      meta.appendChild(document.createTextNode(c.feito ? 'comprado' : (c.mes || 'sem mês definido')));
+      if(c.feito){
+        meta.appendChild(document.createTextNode('comprado'));
+      } else {
+        const ms = document.createElement('select');
+        ms.className = 'mesSelItem';
+        ms.setAttribute('aria-label', 'mês para comprar');
+        const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'sem mês definido'; ms.appendChild(o0);
+        const meses = MESES.slice();
+        if(c.mes && meses.indexOf(c.mes) < 0){ meses.unshift(c.mes); }
+        meses.forEach(m=>{ const o = document.createElement('option'); o.value = m; o.textContent = m; ms.appendChild(o); });
+        ms.value = c.mes || '';
+        ms.onchange = ()=>{ lista[i].mes = ms.value; saveCompras(lista); renderCompras(); };
+        meta.appendChild(ms);
+      }
       txt.appendChild(d); txt.appendChild(meta);
       left.appendChild(cb); left.appendChild(fotoThumb(c, i)); left.appendChild(txt);
       const right = document.createElement('span');
       right.className = 'rowRight';
-      const val = document.createElement('span');
+      const val = document.createElement('button');
+      val.type = 'button';
+      val.className = 'valEdit';
       val.textContent = fmt(v);
+      val.setAttribute('aria-label', 'editar valor');
+      val.onclick = ()=>{
+        const r = prompt('Novo valor de "' + c.d + '" (R$):', String(v).replace('.', ','));
+        if(r === null) return;
+        const n = parseFloat(String(r).replace(/\./g, '').replace(',', '.'));
+        if(isNaN(n) || n < 0){ alert('Valor inválido.'); return; }
+        lista[i].v = n; saveCompras(lista); renderCompras();
+      };
       const del = document.createElement('button');
       del.className = 'delBtn'; del.textContent = '✕';
       del.setAttribute('aria-label','remover item');
