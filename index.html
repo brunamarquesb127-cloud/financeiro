@@ -636,6 +636,18 @@
     safeSet('seedCaixinhas1', '1');
   })();
 
+  // Carga única: terceira caixinha (reserva para pagar a tia Bi)
+  (function(){
+    if(safeGet('seedCaixinhas2')) return;
+    const l = loadList('caixinhas');
+    const nome = 'Reserva da tia Bi';
+    if(!l.some(c => String(c.nome).toLowerCase() === nome.toLowerCase())){
+      l.push({id:newId(), nome:nome, desc:'Para pagar a tia Bi quando o salário não der. Dívida: R$ 4.000,00 (mais R$ 500,00 em junho).', movs:[{id:newId(), t:'in', v:1217.18, d:'Saldo inicial', data:hojeISO()}]});
+    }
+    saveList('caixinhas', l);
+    safeSet('seedCaixinhas2', '1');
+  })();
+
   function renderCaixinhas(){
     const lista = loadList('caixinhas');
     const el = document.getElementById('caixinhasList');
