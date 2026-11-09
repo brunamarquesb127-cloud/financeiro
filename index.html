@@ -101,6 +101,24 @@
   button.pill{border:none;cursor:pointer;font-family:inherit;line-height:1.4}
   .mesSelItem{font-size:11px;padding:1px 4px;border-radius:6px;min-width:0;max-width:140px;font-weight:400;color:var(--text-muted)}
   .valEdit{cursor:pointer;border:none;background:transparent;padding:2px 4px;font-size:14px;color:var(--text);border-bottom:1px dashed var(--border-strong);border-radius:0}
+  .cx{background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px}
+  .cxHead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .cx h3{font-size:15px;font-weight:600;margin:0}
+  .cxSaldo{font-size:22px;font-weight:600;margin:4px 0 2px}
+  .cxDesc{font-size:12px;color:var(--text-secondary);margin-bottom:8px}
+  .cxForm{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .cxForm input[type=text]{min-width:0}
+  .cxForm .cxVal{width:96px}
+  .cxForm .cxMot{flex:1;min-width:110px}
+  .cxIn{background:#e3f3e6;border-color:#bcd9c2;font-weight:600}
+  .cxOut{background:#fde2e2;border-color:#ecc0c0;font-weight:600}
+  .mov{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 0;border-top:0.5px solid var(--border);gap:8px}
+  .mov .movD{color:var(--text-secondary);min-width:0}
+  .movIn{color:#1f6b33}
+  .movOut{color:var(--danger)}
+  details.novaCx{margin-top:4px}
+  details.novaCx summary{cursor:pointer;font-size:13px;font-weight:600;margin-bottom:8px}
+  .aviso{font-size:13px;color:#7a5a00;background:#fff6db;border:0.5px solid #f0e0a0;border-radius:var(--radius);padding:10px 12px;margin:-12px 0 24px;line-height:1.4}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -125,6 +143,8 @@
     <div class="card"><p>Gastos loja</p><p id="gastosLojaOut">R$0</p></div>
     <div class="card"><p>Disponível</p><p id="saldoOut">R$0</p></div>
   </div>
+
+  <div id="avisoLoja" class="aviso" style="display:none" role="status"></div>
 
   <div class="section">
     <h2>Compromissos fixos do mês</h2>
@@ -175,6 +195,22 @@
     <button id="addBtn" class="addBtn" style="margin-bottom:8px">+ adicionar gasto</button>
     <div id="tipoResumo" class="resumo"></div>
     <div id="gastosList" class="list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Caixinhas (reserva)</h2>
+    <p class="hint">Dinheiro guardado. <b>Não entra no cálculo do mês</b> — fica separado, só para quando precisar. Registre quando guardar mais ou retirar.</p>
+    <div id="caixinhasResumo" class="resumo"></div>
+    <div id="caixinhasList"></div>
+    <details class="novaCx">
+      <summary>+ Nova caixinha</summary>
+      <div class="formGrid">
+        <label class="full">Nome<input id="cxNome" type="text" placeholder="Ex: Viagem, Reserva do carro"></label>
+        <label>Saldo atual (R$)<input id="cxSaldoIni" type="text" inputmode="decimal" placeholder="0,00"></label>
+        <label>Para que serve (opcional)<input id="cxDescNova" type="text" placeholder="Ex: só para a viagem"></label>
+      </div>
+      <button id="addCxBtn" class="addBtn" style="margin-bottom:8px">+ criar caixinha</button>
+    </details>
   </div>
 
   <div class="section">
@@ -503,6 +539,24 @@
     const saldo = rendaTotal - totalFixo - totalGastos;
     saldoOut.textContent = fmt(saldo);
     saldoOut.className = saldo < 0 ? 'neg' : '';
+    // Aviso: gastos da loja que o salário não cobre -> sairiam da caixinha da loja
+    const avisoEl = document.getElementById('avisoLoja');
+    if(saldo < 0 && totalLoja > 0){
+      const falta = Math.min(-saldo, totalLoja);
+      const cxLoja = loadList('caixinhas').find(c => String(c.nome).toLowerCase().indexOf('loja') >= 0);
+      let msg = 'Gastos da loja de ' + fmt(totalLoja) + ' passam do que o salário cobre: faltam ' + fmt(falta) + ', que sairiam da caixinha da loja';
+      if(cxLoja){
+        const sc = saldoCx(cxLoja);
+        msg += ' (saldo ' + fmt(sc) + ').';
+        if(falta > sc + 0.001){ msg += ' A caixinha não cobre tudo: ainda faltariam ' + fmt(falta - sc) + '.'; }
+      } else { msg += ' (você ainda não tem uma caixinha da loja cadastrada).'; }
+      if(-saldo > totalLoja + 0.001){ msg += ' O restante do negativo do mês (' + fmt(-saldo - totalLoja) + ') não é gasto da loja.'; }
+      avisoEl.textContent = msg;
+      avisoEl.style.display = 'block';
+    } else {
+      avisoEl.textContent = '';
+      avisoEl.style.display = 'none';
+    }
 
     renderBackupInfo();
   }
@@ -550,6 +604,149 @@
     document.getElementById('valExtraIn').value = '';
     render();
   });
+
+  // ---------- Caixinhas (reservas fora do cálculo do mês) ----------
+  function parseVal(s){
+    s = String(s).trim();
+    if(s.indexOf(',') >= 0){ s = s.replace(/\./g, '').replace(',', '.'); }
+    const n = parseFloat(s);
+    return isNaN(n) ? NaN : n;
+  }
+  function hojeISO(){
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+  }
+  function saldoCx(c){
+    const movs = Array.isArray(c.movs) ? c.movs : [];
+    return movs.reduce((s, m) => s + (m.t === 'out' ? -1 : 1) * (Number(m.v) || 0), 0);
+  }
+  // Carga única: as caixinhas que a Bruna informou
+  (function(){
+    if(safeGet('seedCaixinhas1')) return;
+    const l = loadList('caixinhas');
+    [
+      ['Caixinha da loja', 'Para compras da loja quando o salário não cobrir.', 3689.82],
+      ['Caixinha de emergência', 'Dinheiro pessoal: contas, compras, viagem ou investir mais na loja.', 3391.96]
+    ].forEach(function(x){
+      if(!l.some(c => String(c.nome).toLowerCase() === x[0].toLowerCase())){
+        l.push({id:newId(), nome:x[0], desc:x[1], movs:[{id:newId(), t:'in', v:x[2], d:'Saldo inicial', data:hojeISO()}]});
+      }
+    });
+    saveList('caixinhas', l);
+    safeSet('seedCaixinhas1', '1');
+  })();
+
+  function renderCaixinhas(){
+    const lista = loadList('caixinhas');
+    const el = document.getElementById('caixinhasList');
+    el.innerHTML = '';
+    let total = 0;
+    if(!lista.length){ el.innerHTML = '<div class="list"><div class="empty">nenhuma caixinha ainda</div></div>'; }
+    lista.forEach((c, i) => {
+      if(!Array.isArray(c.movs)){ c.movs = []; }
+      const saldo = saldoCx(c);
+      total += saldo;
+      const card = document.createElement('div');
+      card.className = 'cx';
+      const head = document.createElement('div');
+      head.className = 'cxHead';
+      const h = document.createElement('h3');
+      h.textContent = String(c.nome);
+      const del = document.createElement('button');
+      del.className = 'delBtn'; del.textContent = '✕';
+      del.setAttribute('aria-label', 'remover caixinha');
+      del.onclick = () => {
+        if(!confirm('Remover a caixinha "' + c.nome + '" e todo o histórico dela? Isso não tem volta.')) return;
+        lista.splice(i, 1); saveList('caixinhas', lista); renderCaixinhas();
+      };
+      head.appendChild(h); head.appendChild(del);
+      card.appendChild(head);
+      const sd = document.createElement('div');
+      sd.className = 'cxSaldo' + (saldo < 0 ? ' neg' : '');
+      sd.textContent = fmt(saldo);
+      card.appendChild(sd);
+      if(c.desc){
+        const d = document.createElement('div');
+        d.className = 'cxDesc'; d.textContent = String(c.desc);
+        card.appendChild(d);
+      }
+      const form = document.createElement('div');
+      form.className = 'cxForm';
+      const val = document.createElement('input');
+      val.type = 'text'; val.setAttribute('inputmode', 'decimal'); val.placeholder = 'R$'; val.className = 'cxVal';
+      val.setAttribute('aria-label', 'valor');
+      const mot = document.createElement('input');
+      mot.type = 'text'; mot.placeholder = 'Motivo (opcional)'; mot.className = 'cxMot';
+      mot.setAttribute('aria-label', 'motivo');
+      function mover(t){
+        const v = parseVal(val.value);
+        if(isNaN(v) || v <= 0){ alert('Digite um valor maior que zero.'); return; }
+        if(t === 'out' && v > saldo + 0.001){
+          alert('Essa retirada (' + fmt(v) + ') é maior que o saldo da caixinha (' + fmt(saldo) + ').'); return;
+        }
+        c.movs.push({id:newId(), t:t, v:v, d:mot.value.trim() || (t === 'in' ? 'Guardado' : 'Retirada'), data:hojeISO()});
+        saveList('caixinhas', lista);
+        renderCaixinhas();
+      }
+      const bIn = document.createElement('button');
+      bIn.type = 'button'; bIn.className = 'cxIn'; bIn.textContent = '+ Guardar';
+      bIn.onclick = () => mover('in');
+      const bOut = document.createElement('button');
+      bOut.type = 'button'; bOut.className = 'cxOut'; bOut.textContent = '− Retirar';
+      bOut.onclick = () => mover('out');
+      form.appendChild(val); form.appendChild(mot); form.appendChild(bIn); form.appendChild(bOut);
+      card.appendChild(form);
+      // histórico: últimas 5 movimentações (mais recente primeiro)
+      const rec = c.movs.map((m, k) => ({m:m, k:k})).reverse().slice(0, 5);
+      rec.forEach(x => {
+        const m = x.m;
+        const r = document.createElement('div');
+        r.className = 'mov';
+        const l = document.createElement('span');
+        l.className = 'movD';
+        l.textContent = fmtData(m.data) + ' · ' + String(m.d);
+        const rr = document.createElement('span');
+        rr.className = 'rowRight';
+        const vv = document.createElement('span');
+        vv.className = m.t === 'out' ? 'movOut' : 'movIn';
+        vv.textContent = (m.t === 'out' ? '−' : '+') + fmt(Number(m.v) || 0);
+        const dm = document.createElement('button');
+        dm.className = 'delBtn'; dm.textContent = '✕';
+        dm.setAttribute('aria-label', 'apagar movimentação');
+        dm.onclick = () => {
+          if(!confirm('Apagar essa movimentação? O saldo da caixinha será recalculado.')) return;
+          c.movs.splice(x.k, 1); saveList('caixinhas', lista); renderCaixinhas();
+        };
+        rr.appendChild(vv); rr.appendChild(dm);
+        r.appendChild(l); r.appendChild(rr);
+        card.appendChild(r);
+      });
+      if(c.movs.length > 5){
+        const mais = document.createElement('div');
+        mais.className = 'rowMeta'; mais.style.marginTop = '4px';
+        mais.textContent = 'mostrando as 5 últimas de ' + c.movs.length + ' movimentações';
+        card.appendChild(mais);
+      }
+      el.appendChild(card);
+    });
+    document.getElementById('caixinhasResumo').textContent = lista.length ? 'Total guardado: ' + fmt(total) + '  ·  fora do cálculo do mês' : '';
+  }
+
+  document.getElementById('addCxBtn').addEventListener('click', () => {
+    const nome = document.getElementById('cxNome').value.trim();
+    if(!nome) return;
+    const iniTxt = document.getElementById('cxSaldoIni').value;
+    const ini = iniTxt.trim() === '' ? 0 : parseVal(iniTxt);
+    if(isNaN(ini) || ini < 0){ alert('Saldo inválido.'); return; }
+    const lista = loadList('caixinhas');
+    const c = {id:newId(), nome:nome, desc:document.getElementById('cxDescNova').value.trim(), movs:[]};
+    if(ini > 0){ c.movs.push({id:newId(), t:'in', v:ini, d:'Saldo inicial', data:hojeISO()}); }
+    lista.push(c);
+    saveList('caixinhas', lista);
+    ['cxNome', 'cxSaldoIni', 'cxDescNova'].forEach(id => { document.getElementById(id).value = ''; });
+    renderCaixinhas();
+  });
+  renderCaixinhas();
 
   // ---------- Planejamento: compras e viagens ----------
   const PRIO_NOME = {1:'Alta', 2:'Média', 3:'Baixa'};
@@ -899,7 +1096,7 @@
 
   // ---------- Backup ----------
   const BACKUP_APP = 'painel-financeiro-bruna';
-  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens';
+  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas';
   const backupInfo = document.getElementById('backupInfo');
   const backupMsg = document.getElementById('backupMsg');
 
@@ -989,7 +1186,7 @@
       currentMes = loadMes();
       sel.value = currentMes;
       rendaIn.value = loadRenda();
-      render(); renderCompras(); renderViagens();
+      render(); renderCompras(); renderViagens(); renderCaixinhas();
       showBackupMsg('Backup importado com sucesso (' + qtd + ' blocos de dados).', false);
     };
     reader.readAsText(file);
