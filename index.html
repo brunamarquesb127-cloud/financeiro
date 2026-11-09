@@ -119,6 +119,9 @@
   details.novaCx{margin-top:4px}
   details.novaCx summary{cursor:pointer;font-size:13px;font-weight:600;margin-bottom:8px}
   .aviso{font-size:13px;color:#7a5a00;background:#fff6db;border:0.5px solid #f0e0a0;border-radius:var(--radius);padding:10px 12px;margin:-12px 0 24px;line-height:1.4}
+  .parcModo{font-size:13px;color:var(--text-secondary);margin-bottom:8px}
+  .parcModo select{min-width:0;font-weight:400;margin-left:4px}
+  .parcModo .hint{margin:6px 0 0;color:var(--accent);font-weight:600}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -191,7 +194,10 @@
         parcela <input id="parcAtualIn" type="number" min="1" value="1"> de <input id="parcTotalIn" type="number" min="1" value="2">
       </span>
     </div>
-    <p class="hint" id="parcHint" style="display:none">Informe o valor <b>de uma parcela</b>. As parcelas que faltam entram sozinhas nos meses seguintes.</p>
+    <div class="parcModo" id="parcHint" style="display:none">
+      <label>O valor acima é: <select id="parcModoIn"><option value="total" selected>o total da compra</option><option value="parcela">o valor de cada parcela</option></select></label>
+      <div class="hint" id="parcPrev"></div>
+    </div>
     <button id="addBtn" class="addBtn" style="margin-bottom:8px">+ adicionar gasto</button>
     <div id="tipoResumo" class="resumo"></div>
     <div id="gastosList" class="list"></div>
@@ -380,7 +386,7 @@
       if(s < 0 || idx <= s) return;
       const n = p.parcAtual + (idx - s);
       if(n <= p.parcTotal){
-        out.push({pid:p.id, d:p.d, v:Number(p.v)||0, cartao:p.cartao, tipo:p.tipo, parcAtual:n, parcTotal:p.parcTotal});
+        out.push({pid:p.id, d:p.d, v:Number(p.v)||0, cartao:p.cartao, tipo:p.tipo, parcAtual:n, parcTotal:p.parcTotal, totalCompra:p.totalCompra});
       }
     });
     return out;
@@ -412,6 +418,22 @@
     parcCampos.style.display = parceladoIn.checked ? 'inline-flex' : 'none';
     parcHint.style.display = parceladoIn.checked ? 'block' : 'none';
   });
+
+  // Prévia da divisão do valor parcelado
+  function atualizarPrevParc(){
+    const prev = document.getElementById('parcPrev');
+    const v = parseFloat(document.getElementById('valIn').value);
+    const n = Math.max(1, parseInt(document.getElementById('parcTotalIn').value) || 1);
+    const modo = document.getElementById('parcModoIn').value;
+    if(!parceladoIn.checked || !(v > 0)){ prev.textContent = ''; return; }
+    if(modo === 'total'){ prev.textContent = fmt(v) + ' ÷ ' + n + ' = ' + fmt(Math.round(v / n * 100) / 100) + ' por parcela'; }
+    else { prev.textContent = n + ' parcelas de ' + fmt(v) + ' = ' + fmt(v * n) + ' no total'; }
+  }
+  ['valIn', 'parcTotalIn', 'parcModoIn'].forEach(id => {
+    document.getElementById(id).addEventListener('input', atualizarPrevParc);
+    document.getElementById(id).addEventListener('change', atualizarPrevParc);
+  });
+  parceladoIn.addEventListener('change', atualizarPrevParc);
 
   // Monta uma linha de lista usando textContent (sem injetar HTML)
   function makeRow(desc, meta, valTxt, onDel, delLabel){
@@ -489,6 +511,7 @@
       let meta = c;
       if(p.tipo){ meta += ' · ' + p.tipo; }
       meta += ' · parcela '+p.parcAtual+'/'+p.parcTotal;
+      if(p.totalCompra){ meta += ' · compra de '+fmt(Number(p.totalCompra)||0); }
       parcList.appendChild(makeRow(p.d, meta, fmt(p.v), ()=>{
         if(!confirm('Parar de projetar "'+p.d+'" nos meses seguintes?\n\nIsso remove as parcelas projetadas (inclusive deste mês). O gasto lançado no mês original continua lá.')) return;
         saveParcelamentos(loadParcelamentos().filter(x=>x.id !== p.pid));
@@ -515,6 +538,7 @@
       let metaTxt = g.cartao || 'Dinheiro/Débito';
       if(g.tipo){ metaTxt += ' · ' + g.tipo; }
       if(g.parcelado){ metaTxt += ' · parcela '+g.parcAtual+'/'+g.parcTotal; }
+      if(g.parcelado && g.totalCompra){ metaTxt += ' · compra de '+fmt(Number(g.totalCompra)||0); }
       gastosList.appendChild(makeRow(String(g.d), metaTxt, fmt(v), ()=>{
         if(g.pid){
           const restantes = loadParcelamentos().filter(p=>p.id === g.pid).length;
@@ -574,12 +598,15 @@
     let parcAtual = parcelado ? Math.max(1, parseInt(document.getElementById('parcAtualIn').value)||1) : null;
     let parcTotal = parcelado ? Math.max(1, parseInt(document.getElementById('parcTotalIn').value)||1) : null;
     if(parcelado && parcAtual > parcTotal){ parcAtual = parcTotal; }
-    const gasto = {d,v,cartao,tipo,parcelado,parcAtual,parcTotal};
+    const modoTotal = parcelado && document.getElementById('parcModoIn').value === 'total';
+    const vParc = modoTotal ? Math.round(v / parcTotal * 100) / 100 : v;
+    const gasto = {d, v:vParc, cartao, tipo, parcelado, parcAtual, parcTotal};
+    if(modoTotal){ gasto.totalCompra = v; }
     if(parcelado && parcTotal > parcAtual){
       const id = newId();
       gasto.pid = id;
       const lista = loadParcelamentos();
-      lista.push({id, d, v, cartao, tipo, mes:currentMes, parcAtual, parcTotal});
+      lista.push({id, d, v:vParc, cartao, tipo, mes:currentMes, parcAtual, parcTotal, totalCompra: modoTotal ? v : undefined});
       saveParcelamentos(lista);
     }
     const gastos = loadList('gastos:'+currentMes);
@@ -590,6 +617,8 @@
     parceladoIn.checked = false;
     parcCampos.style.display = 'none';
     parcHint.style.display = 'none';
+    document.getElementById('parcModoIn').value = 'total';
+    document.getElementById('parcPrev').textContent = '';
     render();
   });
 
