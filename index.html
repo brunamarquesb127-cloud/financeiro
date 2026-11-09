@@ -642,10 +642,24 @@
     const l = loadList('caixinhas');
     const nome = 'Reserva da tia Bi';
     if(!l.some(c => String(c.nome).toLowerCase() === nome.toLowerCase())){
-      l.push({id:newId(), nome:nome, desc:'Para pagar a tia Bi quando o salário não der. Dívida: R$ 4.000,00 (mais R$ 500,00 em junho).', movs:[{id:newId(), t:'in', v:1217.18, d:'Saldo inicial', data:hojeISO()}]});
+      l.push({id:newId(), nome:nome, desc:'Para pagar a tia Bi quando o salário não der. Dívida: R$ 3.500,00, em parcelas de R$ 500,00 até junho.', movs:[{id:newId(), t:'in', v:1217.18, d:'Saldo inicial', data:hojeISO()}]});
     }
     saveList('caixinhas', l);
     safeSet('seedCaixinhas2', '1');
+  })();
+
+  // Correção única do texto da Reserva da tia Bi (a dívida é R$ 3.500, parcelas até junho)
+  (function(){
+    if(safeGet('fixDescTia1')) return;
+    const l = loadList('caixinhas');
+    let mudou = false;
+    l.forEach(c => {
+      if(String(c.nome).toLowerCase() === 'reserva da tia bi' && String(c.desc).indexOf('4.000') >= 0){
+        c.desc = "Para pagar a tia Bi quando o salário não der. Dívida: R$ 3.500,00, em parcelas de R$ 500,00 até junho."; mudou = true;
+      }
+    });
+    if(mudou){ saveList('caixinhas', l); }
+    safeSet('fixDescTia1', '1');
   })();
 
   function renderCaixinhas(){
