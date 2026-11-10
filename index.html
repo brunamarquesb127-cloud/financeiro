@@ -152,6 +152,19 @@
   <div class="section">
     <h2>Compromissos fixos do mês</h2>
     <div id="fixosList" class="list"></div>
+    <div class="addRow">
+      <input id="fixoNomeIn" type="text" placeholder="Ex: internet, plano de saúde">
+      <input id="fixoValIn" type="text" inputmode="decimal" placeholder="R$" style="width:90px">
+    </div>
+    <div class="addRow">
+      <select id="fixoRepIn" aria-label="repetição">
+        <option value="mes">Só neste mês</option>
+        <option value="sempre">Todos os meses daqui pra frente</option>
+        <option value="n">Por alguns meses…</option>
+      </select>
+      <input id="fixoNIn" type="number" min="2" max="60" value="3" style="display:none;width:70px" aria-label="quantidade de meses">
+      <button id="addFixoBtn" class="addBtn">+ adicionar fixo</button>
+    </div>
   </div>
 
   <div class="section">
@@ -463,16 +476,68 @@
     return row;
   }
 
+  // ---------- Gastos fixos adicionados pela Bruna ----------
+  // 'fixosExtras' = [{id, n, v, de:'Mês Ano', ate:'Mês Ano' ou '' (sem fim)}]
+  function mesDeNum(n){ return NOMES_MES[n % 12] + ' ' + Math.floor(n / 12); }
+  function fixosExtrasDoMes(mes){
+    const idx = mesNum(mes), out = [];
+    loadList('fixosExtras').forEach(x=>{
+      const de = mesNum(x.de), ate = x.ate ? mesNum(x.ate) : Infinity;
+      if(de < 0 || idx < de || idx > ate) return;
+      let meta;
+      if(x.ate && x.ate === x.de){ meta = 'só neste mês'; }
+      else if(!x.ate){ meta = 'todos os meses desde ' + x.de; }
+      else { meta = x.de + ' até ' + x.ate; }
+      out.push({id:x.id, n:String(x.n), v:Number(x.v)||0, meta:meta});
+    });
+    return out;
+  }
+  document.getElementById('fixoRepIn').addEventListener('change', ()=>{
+    document.getElementById('fixoNIn').style.display = document.getElementById('fixoRepIn').value === 'n' ? 'inline-block' : 'none';
+  });
+  document.getElementById('addFixoBtn').addEventListener('click', ()=>{
+    const n = document.getElementById('fixoNomeIn').value.trim();
+    const txt = document.getElementById('fixoValIn').value;
+    let v = txt.indexOf(',') >= 0 ? parseFloat(txt.replace(/\./g, '').replace(',', '.')) : parseFloat(txt);
+    if(!n) return;
+    if(isNaN(v) || v <= 0){ alert('Digite um valor maior que zero.'); return; }
+    const rep = document.getElementById('fixoRepIn').value;
+    const ini = mesNum(currentMes);
+    let ate = '';
+    if(rep === 'mes'){ ate = currentMes; }
+    else if(rep === 'n'){
+      const qtd = Math.max(2, Math.min(60, parseInt(document.getElementById('fixoNIn').value) || 2));
+      ate = mesDeNum(ini + qtd - 1);
+    }
+    const lista = loadList('fixosExtras');
+    lista.push({id:newId(), n:n, v:v, de:currentMes, ate:ate});
+    saveList('fixosExtras', lista);
+    document.getElementById('fixoNomeIn').value = '';
+    document.getElementById('fixoValIn').value = '';
+    document.getElementById('fixoRepIn').value = 'mes';
+    document.getElementById('fixoNIn').style.display = 'none';
+    render();
+  });
+
   function render(){
     if(storageBlocked){ document.getElementById('warnBox').style.display = 'block'; }
 
     const fixos = FIXOS_BASE[currentMes] || [];
     fixosList.innerHTML = '';
     let totalFixo = 0;
-    if(fixos.length===0){ fixosList.innerHTML = '<div class="empty">nenhum compromisso fixo neste mês</div>'; }
+    const fixosAdd = fixosExtrasDoMes(currentMes);
+    if(fixos.length===0 && fixosAdd.length===0){ fixosList.innerHTML = '<div class="empty">nenhum compromisso fixo neste mês</div>'; }
     fixos.forEach(f=>{
       totalFixo += f.v;
       fixosList.appendChild(makeRow(f.n, null, fmt(f.v)));
+    });
+    fixosAdd.forEach(x=>{
+      totalFixo += x.v;
+      fixosList.appendChild(makeRow(x.n, x.meta, fmt(x.v), ()=>{
+        if(!confirm('Remover "' + x.n + '" (' + x.meta + ')?' + (x.meta === 'só neste mês' ? '' : '\n\nIsso tira o gasto de todos os meses em que ele vale.'))) return;
+        saveList('fixosExtras', loadList('fixosExtras').filter(y=>y.id !== x.id));
+        render();
+      }, 'remover gasto fixo'));
     });
     fixoOut.textContent = fmt(totalFixo);
 
@@ -1151,7 +1216,7 @@
 
   // ---------- Backup ----------
   const BACKUP_APP = 'painel-financeiro-bruna';
-  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas';
+  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas' || k === 'fixosExtras';
   const backupInfo = document.getElementById('backupInfo');
   const backupMsg = document.getElementById('backupMsg');
 
