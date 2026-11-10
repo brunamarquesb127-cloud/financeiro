@@ -170,6 +170,21 @@
   <div class="section">
     <h2>Entradas extras</h2>
     <div id="entradasFixasList" class="list"></div>
+    <p class="hint">Entrada que se repete (alguém que te paga todo mês):</p>
+    <div class="addRow">
+      <input id="entNomeIn" type="text" placeholder="Ex: Maria, aluguel recebido">
+      <input id="entValIn" type="text" inputmode="decimal" placeholder="R$" style="width:90px">
+    </div>
+    <div class="addRow">
+      <select id="entRepIn" aria-label="repetição da entrada">
+        <option value="mes">Só neste mês</option>
+        <option value="sempre">Todos os meses daqui pra frente</option>
+        <option value="n">Por alguns meses…</option>
+      </select>
+      <input id="entNIn" type="number" min="2" max="60" value="3" style="display:none;width:70px" aria-label="quantidade de meses">
+      <button id="addEntBtn" class="addBtn">+ adicionar entrada</button>
+    </div>
+    <p class="hint">Extra avulso, só deste mês:</p>
     <div class="addRow">
       <input id="descExtraIn" type="text" placeholder="Ex: bico, venda">
       <input id="valExtraIn" type="number" placeholder="R$">
@@ -519,6 +534,48 @@
     render();
   });
 
+  // ---------- Entradas fixas adicionadas pela Bruna ----------
+  // 'entradasFixasExtras' = [{id, n, v, de:'Mês Ano', ate:'Mês Ano' ou '' (sem fim)}]
+  function entradasExtrasDoMes(mes){
+    const idx = mesNum(mes), out = [];
+    loadList('entradasFixasExtras').forEach(x=>{
+      const de = mesNum(x.de), ate = x.ate ? mesNum(x.ate) : Infinity;
+      if(de < 0 || idx < de || idx > ate) return;
+      let meta;
+      if(x.ate && x.ate === x.de){ meta = 'só neste mês'; }
+      else if(!x.ate){ meta = 'todos os meses desde ' + x.de; }
+      else { meta = x.de + ' até ' + x.ate; }
+      out.push({id:x.id, n:String(x.n), v:Number(x.v)||0, meta:meta});
+    });
+    return out;
+  }
+  document.getElementById('entRepIn').addEventListener('change', ()=>{
+    document.getElementById('entNIn').style.display = document.getElementById('entRepIn').value === 'n' ? 'inline-block' : 'none';
+  });
+  document.getElementById('addEntBtn').addEventListener('click', ()=>{
+    const n = document.getElementById('entNomeIn').value.trim();
+    const txt = document.getElementById('entValIn').value;
+    const v = txt.indexOf(',') >= 0 ? parseFloat(txt.replace(/\./g, '').replace(',', '.')) : parseFloat(txt);
+    if(!n) return;
+    if(isNaN(v) || v <= 0){ alert('Digite um valor maior que zero.'); return; }
+    const rep = document.getElementById('entRepIn').value;
+    const ini = mesNum(currentMes);
+    let ate = '';
+    if(rep === 'mes'){ ate = currentMes; }
+    else if(rep === 'n'){
+      const qtd = Math.max(2, Math.min(60, parseInt(document.getElementById('entNIn').value) || 2));
+      ate = mesDeNum(ini + qtd - 1);
+    }
+    const lista = loadList('entradasFixasExtras');
+    lista.push({id:newId(), n:n, v:v, de:currentMes, ate:ate});
+    saveList('entradasFixasExtras', lista);
+    document.getElementById('entNomeIn').value = '';
+    document.getElementById('entValIn').value = '';
+    document.getElementById('entRepIn').value = 'mes';
+    document.getElementById('entNIn').style.display = 'none';
+    render();
+  });
+
   function render(){
     if(storageBlocked){ document.getElementById('warnBox').style.display = 'block'; }
 
@@ -544,10 +601,19 @@
     const entradasFixas = ENTRADAS_FIXAS_BASE[currentMes] || [];
     entradasFixasList.innerHTML = '';
     let totalEntradasFixas = 0;
-    if(entradasFixas.length===0){ entradasFixasList.innerHTML = '<div class="empty">sem entradas fixas neste mês</div>'; }
+    const entradasAdd = entradasExtrasDoMes(currentMes);
+    if(entradasFixas.length===0 && entradasAdd.length===0){ entradasFixasList.innerHTML = '<div class="empty">sem entradas fixas neste mês</div>'; }
     entradasFixas.forEach(e=>{
       totalEntradasFixas += e.v;
       entradasFixasList.appendChild(makeRow(e.n, null, '+'+fmt(e.v)));
+    });
+    entradasAdd.forEach(x=>{
+      totalEntradasFixas += x.v;
+      entradasFixasList.appendChild(makeRow(x.n, x.meta, '+'+fmt(x.v), ()=>{
+        if(!confirm('Remover "' + x.n + '" (' + x.meta + ')?' + (x.meta === 'só neste mês' ? '' : '\n\nIsso tira a entrada de todos os meses em que ela vale.'))) return;
+        saveList('entradasFixasExtras', loadList('entradasFixasExtras').filter(y=>y.id !== x.id));
+        render();
+      }, 'remover entrada fixa'));
     });
 
     const extras = loadList('extras:'+currentMes);
@@ -613,7 +679,7 @@
         gastos.splice(i,1); saveList('gastos:'+currentMes, gastos); render();
       }, 'remover gasto'));
     });
-    gastosOut.textContent = fmt(totalGastos);
+    gastosOut.textContent = fmt(totalGastos - totalLoja);
     document.getElementById('gastosLojaOut').textContent = fmt(totalLoja);
     const tipoResumoEl = document.getElementById('tipoResumo');
     if(totalPessoal > 0 || totalLoja > 0){
@@ -1216,7 +1282,7 @@
 
   // ---------- Backup ----------
   const BACKUP_APP = 'painel-financeiro-bruna';
-  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas' || k === 'fixosExtras';
+  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas' || k === 'fixosExtras' || k === 'entradasFixasExtras';
   const backupInfo = document.getElementById('backupInfo');
   const backupMsg = document.getElementById('backupMsg');
 
