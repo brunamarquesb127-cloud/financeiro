@@ -122,6 +122,7 @@
   .parcModo{font-size:13px;color:var(--text-secondary);margin-bottom:8px}
   .parcModo select{min-width:0;font-weight:400;margin-left:4px}
   .parcModo .hint{margin:6px 0 0;color:var(--accent);font-weight:600}
+  .divBtn{font-size:11px;padding:2px 8px;border-radius:10px;color:var(--accent);border-color:var(--accent);font-weight:600;white-space:nowrap}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -670,14 +671,33 @@
       if(g.tipo){ metaTxt += ' · ' + g.tipo; }
       if(g.parcelado){ metaTxt += ' · parcela '+g.parcAtual+'/'+g.parcTotal; }
       if(g.parcelado && g.totalCompra){ metaTxt += ' · compra de '+fmt(Number(g.totalCompra)||0); }
-      gastosList.appendChild(makeRow(String(g.d), metaTxt, fmt(v), ()=>{
+      const rowG = makeRow(String(g.d), metaTxt, fmt(v), ()=>{
         if(g.pid){
           const restantes = loadParcelamentos().filter(p=>p.id === g.pid).length;
           if(restantes && !confirm('Esse gasto é parcelado. Remover também apaga as parcelas projetadas dos meses seguintes. Continuar?')) return;
           saveParcelamentos(loadParcelamentos().filter(p=>p.id !== g.pid));
         }
         gastos.splice(i,1); saveList('gastos:'+currentMes, gastos); render();
-      }, 'remover gasto'));
+      }, 'remover gasto');
+      // gasto parcelado lançado quando o valor era "de cada parcela": permite tratar como total e dividir
+      if(g.parcelado && g.pid && !g.totalCompra && Number(g.parcTotal) > 1){
+        const db = document.createElement('button');
+        db.type = 'button'; db.className = 'divBtn'; db.textContent = '÷ dividir';
+        db.setAttribute('aria-label', 'tratar o valor como total da compra e dividir pelas parcelas');
+        db.onclick = ()=>{
+          const n = Number(g.parcTotal), total = v, parcela = Math.round(total / n * 100) / 100;
+          if(!confirm('Tratar ' + fmt(total) + ' como o TOTAL da compra e dividir em ' + n + 'x de ' + fmt(parcela) + '?\n\nAs parcelas dos meses seguintes também passam a ser de ' + fmt(parcela) + '.')) return;
+          g.v = parcela; g.totalCompra = total;
+          saveList('gastos:'+currentMes, gastos);
+          const ps = loadParcelamentos();
+          ps.forEach(p=>{ if(p.id === g.pid){ p.v = parcela; p.totalCompra = total; } });
+          saveParcelamentos(ps);
+          render();
+        };
+        const dir = rowG.querySelector('.rowRight');
+        dir.insertBefore(db, dir.querySelector('.delBtn'));
+      }
+      gastosList.appendChild(rowG);
     });
     gastosOut.textContent = fmt(totalGastos - totalLoja);
     document.getElementById('gastosLojaOut').textContent = fmt(totalLoja);
