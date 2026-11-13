@@ -332,13 +332,13 @@
   }
   const FIXOS_BASE = {
     "Dezembro 2026": [
-      {n:"Nubank",v:2077.38},{n:"Inter",v:662.68},{n:"Mãe (empréstimo 3x)",v:200},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
+      {n:"Nubank",v:1095.58},{n:"Inter",v:662.68},{n:"Mãe (empréstimo 3x)",v:200},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Crediário anel",v:35},{n:"Reserva",v:150},{n:"Academia",v:200}
     ],
     "Janeiro 2027": [
-      {n:"Nubank",v:1443.40},{n:"Inter",v:256.55},{n:"Mãe (empréstimo 3x)",v:200},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+      {n:"Nubank",v:461.60},{n:"Inter",v:256.55},{n:"Mãe (empréstimo 3x)",v:200},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
     ],
     "Fevereiro 2027": [
-      {n:"Nubank",v:1259.32},{n:"Inter",v:113.04},{n:"Mãe (empréstimo 3x)",v:200},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
+      {n:"Nubank",v:277.52},{n:"Inter",v:113.04},{n:"Mãe (empréstimo 3x)",v:200},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
     ],
     "Março 2027": [
       {n:"Nubank",v:255.57},{n:"Inter",v:101.30},{n:"Ração",v:100},{n:"Tia",v:500},{n:"Reserva",v:150},{n:"Academia",v:200}
@@ -1309,6 +1309,24 @@
   mostrarAba(safeGet('abaPlanejamento') || 'compras');
   renderCompras();
   renderViagens();
+
+  // Carga única: parcela da loja que estava dentro da fatura da Nubank (R$ 981,80 de dez a fev)
+  // Sai da fatura (fixos) e passa a aparecer como gasto da Loja nos 3 meses.
+  (function(){
+    if(safeGet('seedParcelaLoja1')) return;
+    const d = 'Parcela da loja (Nubank)';
+    const mes = 'Dezembro 2026';
+    const gastos = loadList('gastos:' + mes);
+    if(!gastos.some(g => String(g.d).trim().toLowerCase() === d.toLowerCase())){
+      const id = newId();
+      gastos.push({d:d, v:981.80, cartao:'Nubank', tipo:'Loja', parcelado:true, parcAtual:1, parcTotal:3, totalCompra:2945.40, pid:id});
+      saveList('gastos:' + mes, gastos);
+      const ps = loadParcelamentos();
+      ps.push({id:id, d:d, v:981.80, cartao:'Nubank', tipo:'Loja', mes:mes, parcAtual:1, parcTotal:3, totalCompra:2945.40});
+      saveParcelamentos(ps);
+    }
+    safeSet('seedParcelaLoja1', '1');
+  })();
 
   // ---------- Backup ----------
   const BACKUP_APP = 'painel-financeiro-bruna';
