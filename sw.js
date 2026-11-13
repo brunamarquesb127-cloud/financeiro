@@ -1,6 +1,6 @@
 // Service worker do Painel Financeiro: guarda o app para abrir offline.
 // Ao mudar o index.html, aumente a versão abaixo para o iPhone pegar a novidade.
-const VERSAO = 'painel-v22';
+const VERSAO = 'painel-v23';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -123,6 +123,20 @@
   .parcModo select{min-width:0;font-weight:400;margin-left:4px}
   .parcModo .hint{margin:6px 0 0;color:var(--accent);font-weight:600}
   .divBtn{font-size:11px;padding:2px 8px;border-radius:10px;color:var(--accent);border-color:var(--accent);font-weight:600;white-space:nowrap}
+  .lojaCard{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin:-12px 0 24px}
+  .lojaCard h3{font-size:14px;font-weight:600;margin:0 0 8px}
+  .lojaLinha{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding:3px 0}
+  .lojaLinha b{white-space:nowrap;font-size:14px}
+  .lojaTot{border-top:0.5px solid var(--border);margin-top:4px;padding-top:6px;font-weight:600}
+  .lojaSal{color:#0c447c}
+  .lojaPropria{color:#1f6b33}
+  .lojaBar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--border);margin:8px 0}
+  .lojaBar span{display:block;height:100%}
+  .barSal{background:#0c447c}
+  .barLoja{background:#2e9a4a}
+  .lojaNota{font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.45}
+  .lojaAlerta{color:#7a5a00}
+  .lojaAcum{border-top:0.5px solid var(--border);margin-top:10px;padding-top:8px}
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -148,7 +162,7 @@
     <div class="card"><p>Disponível</p><p id="saldoOut">R$0</p></div>
   </div>
 
-  <div id="avisoLoja" class="aviso" style="display:none" role="status"></div>
+  <div id="painelLoja" class="lojaCard" style="display:none" role="status"></div>
 
   <div class="section">
     <h2>Compromissos fixos do mês</h2>
@@ -577,6 +591,90 @@
     render();
   });
 
+  // ---------- Quadro "Como a loja se paga" ----------
+  const r2c = x => Math.round(x * 100) / 100;
+  // Resumo de qualquer mês, sem mexer na tela
+  function resumoMes(m){
+    const rendaBase = parseFloat(rendaIn.value) || 0;
+    let fixo = 0;
+    (FIXOS_BASE[m] || []).forEach(f => { fixo += f.v; });
+    fixosExtrasDoMes(m).forEach(x => { fixo += x.v; });
+    let renda = rendaBase;
+    (ENTRADAS_FIXAS_BASE[m] || []).forEach(e => { renda += e.v; });
+    entradasExtrasDoMes(m).forEach(x => { renda += x.v; });
+    loadList('extras:' + m).forEach(e => { renda += Number(e.v) || 0; });
+    let total = 0, loja = 0;
+    loadList('gastos:' + m).forEach(g => { const v = Number(g.v) || 0; total += v; if(g.tipo === 'Loja'){ loja += v; } });
+    parcelasDoMes(m).forEach(p => { total += p.v; if(p.tipo === 'Loja'){ loja += p.v; } });
+    const pessoal = total - loja;
+    const sobra = renda - fixo - pessoal;                 // o que sobra do salário antes de pagar a loja
+    const doSalario = loja > 0 ? Math.min(loja, Math.max(sobra, 0)) : 0;
+    return {renda:r2c(renda), fixo:r2c(fixo), pessoal:r2c(pessoal), loja:r2c(loja), sobra:r2c(sobra),
+            doSalario:r2c(doSalario), daLoja:r2c(loja - doSalario)};
+  }
+  function renderPainelLoja(){
+    const el = document.getElementById('painelLoja');
+    const r = resumoMes(currentMes);
+    el.innerHTML = '';
+    if(!(r.loja > 0)){ el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const cxLoja = loadList('caixinhas').find(c => String(c.nome).toLowerCase().indexOf('loja') >= 0);
+    const saldoLoja = cxLoja ? saldoCx(cxLoja) : null;
+    function linha(rotulo, valor, cls){
+      const l = document.createElement('div'); l.className = 'lojaLinha' + (cls ? ' ' + cls : '');
+      const a = document.createElement('span'); a.textContent = rotulo;
+      const b = document.createElement('b'); b.textContent = valor;
+      l.appendChild(a); l.appendChild(b); el.appendChild(l);
+    }
+    function nota(txt, cls){
+      const n = document.createElement('div'); n.className = 'lojaNota' + (cls ? ' ' + cls : ''); n.textContent = txt; el.appendChild(n);
+    }
+    const h = document.createElement('h3'); h.textContent = 'Como a loja se paga neste mês'; el.appendChild(h);
+    linha('Gastos da loja no mês', fmt(r.loja), 'lojaTot');
+    linha('Sai do seu salário (seu investimento na loja)', fmt(r.doSalario), 'lojaSal');
+    linha('A loja paga sozinha (da caixinha da loja)', fmt(r.daLoja), 'lojaPropria');
+    const bar = document.createElement('div'); bar.className = 'lojaBar';
+    const s1 = document.createElement('span'); s1.className = 'barSal'; s1.style.width = (r.doSalario / r.loja * 100) + '%';
+    const s2 = document.createElement('span'); s2.className = 'barLoja'; s2.style.width = (r.daLoja / r.loja * 100) + '%';
+    bar.appendChild(s1); bar.appendChild(s2); el.appendChild(bar);
+    if(r.daLoja === 0){
+      nota('O seu salário cobre todos os gastos da loja neste mês. Depois do pessoal e dos fixos sobraram ' + fmt(r.sobra) + '.');
+    } else if(r.sobra > 0){
+      nota('Depois do pessoal e dos fixos sobraram ' + fmt(r.sobra) + ' do salário, e isso vai para a loja. O resto, ' + fmt(r.daLoja) + ', precisa vir da caixinha da loja.');
+    } else {
+      nota('Depois do pessoal e dos fixos não sobrou salário para a loja, então a loja se paga toda com a caixinha.');
+    }
+    if(r.sobra < 0){
+      nota('Atenção: só com o pessoal e os fixos o mês já fecha em ' + fmt(r.sobra) + '. Isso não é gasto da loja.', 'lojaAlerta');
+    }
+    if(r.daLoja > 0){
+      if(saldoLoja === null){ nota('Você ainda não tem uma caixinha da loja cadastrada.', 'lojaAlerta'); }
+      else if(r.daLoja > saldoLoja + 0.001){ nota('Caixinha da loja: saldo ' + fmt(saldoLoja) + '. Não cobre tudo, faltariam ' + fmt(r.daLoja - saldoLoja) + '.', 'lojaAlerta'); }
+      else { nota('Caixinha da loja: saldo ' + fmt(saldoLoja) + ' → ficaria ' + fmt(saldoLoja - r.daLoja) + ' se pagar esse mês com ela.'); }
+    }
+    // acumulado em todos os meses do painel
+    let sal = 0, cx = 0;
+    MESES.forEach(m => { const x = resumoMes(m); sal += x.doSalario; cx += x.daLoja; });
+    sal = r2c(sal); cx = r2c(cx);
+    if(sal + cx > 0){
+      const box = document.createElement('div'); box.className = 'lojaAcum'; el.appendChild(box);
+      const t = document.createElement('div'); t.className = 'lojaNota'; t.style.fontWeight = '600'; t.style.marginTop = '0';
+      t.textContent = 'Somando ' + MESES[0] + ' até ' + MESES[MESES.length - 1]; box.appendChild(t);
+      const mk = (rot, val, cls) => { const l = document.createElement('div'); l.className = 'lojaLinha ' + cls;
+        const a = document.createElement('span'); a.textContent = rot; const b = document.createElement('b'); b.textContent = val;
+        l.appendChild(a); l.appendChild(b); box.appendChild(l); };
+      mk('Do seu salário para a loja', fmt(sal), 'lojaSal');
+      mk('A loja paga sozinha', fmt(cx), 'lojaPropria');
+      if(saldoLoja !== null){
+        const n = document.createElement('div'); n.className = 'lojaNota';
+        n.textContent = cx > saldoLoja + 0.001
+          ? 'Caixinha da loja hoje: ' + fmt(saldoLoja) + '. Não cobre o que a loja precisa pagar sozinha; faltariam ' + fmt(cx - saldoLoja) + '.'
+          : 'Caixinha da loja hoje: ' + fmt(saldoLoja) + '. Cobre o que a loja precisa pagar sozinha e ainda sobrariam ' + fmt(saldoLoja - cx) + '.';
+        box.appendChild(n);
+      }
+    }
+  }
+
   function render(){
     if(storageBlocked){ document.getElementById('warnBox').style.display = 'block'; }
 
@@ -714,24 +812,7 @@
     const saldo = rendaTotal - totalFixo - totalGastos;
     saldoOut.textContent = fmt(saldo);
     saldoOut.className = saldo < 0 ? 'neg' : '';
-    // Aviso: gastos da loja que o salário não cobre -> sairiam da caixinha da loja
-    const avisoEl = document.getElementById('avisoLoja');
-    if(saldo < 0 && totalLoja > 0){
-      const falta = Math.min(-saldo, totalLoja);
-      const cxLoja = loadList('caixinhas').find(c => String(c.nome).toLowerCase().indexOf('loja') >= 0);
-      let msg = 'Gastos da loja de ' + fmt(totalLoja) + ' passam do que o salário cobre: faltam ' + fmt(falta) + ', que sairiam da caixinha da loja';
-      if(cxLoja){
-        const sc = saldoCx(cxLoja);
-        msg += ' (saldo ' + fmt(sc) + ').';
-        if(falta > sc + 0.001){ msg += ' A caixinha não cobre tudo: ainda faltariam ' + fmt(falta - sc) + '.'; }
-      } else { msg += ' (você ainda não tem uma caixinha da loja cadastrada).'; }
-      if(-saldo > totalLoja + 0.001){ msg += ' O restante do negativo do mês (' + fmt(-saldo - totalLoja) + ') não é gasto da loja.'; }
-      avisoEl.textContent = msg;
-      avisoEl.style.display = 'block';
-    } else {
-      avisoEl.textContent = '';
-      avisoEl.style.display = 'none';
-    }
+    renderPainelLoja();
 
     renderBackupInfo();
   }
