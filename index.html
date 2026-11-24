@@ -137,6 +137,31 @@
   .lojaNota{font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.45}
   .lojaAlerta{color:#7a5a00}
   .lojaAcum{border-top:0.5px solid var(--border);margin-top:10px;padding-top:8px}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+  .tile{background:var(--card);border:0.5px solid var(--border);border-top:4px solid var(--border-strong);border-radius:12px;padding:14px}
+  .tile.pos{border-top-color:#2e9a4a}
+  .tile.negt{border-top-color:#b3261e}
+  .tile .tTit{font-size:12px;color:var(--text-secondary);margin:0 0 6px;min-height:30px}
+  .tile .tVal{font-size:20px;font-weight:600;margin:0 0 6px;white-space:nowrap}
+  .tile .tCap{font-size:12px;color:var(--text-secondary);margin:6px 0 0;line-height:1.4}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#eceae4;color:#5f5e5a}
+  .badge.pos{background:#dff1e3;color:#1f6b33}
+  .badge.negt{background:#fde2e2;color:#791f1f}
+  .vpos{color:#1f6b33}
+  .fluxoCard{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px}
+  .fluxoCard h3{font-size:14px;font-weight:600;margin:0 0 8px}
+  .modoBtns{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+  .modoBtns button{font-size:12px;padding:6px 10px;color:var(--text-secondary)}
+  .modoBtns button.ativa,.modoBtns button.ativa:hover{background:var(--text);color:#fff;border-color:var(--text);font-weight:600}
+  .mesWrap{overflow-x:auto}
+  .mesTab{width:100%;border-collapse:collapse;font-size:12px}
+  .mesTab th,.mesTab td{padding:6px 6px;text-align:right;border-bottom:0.5px solid var(--border);white-space:nowrap}
+  .mesTab th{font-weight:600;color:var(--text-secondary);white-space:normal;vertical-align:bottom}
+  .mesTab th:first-child,.mesTab td:first-child{text-align:left}
+  .mesTab tr.atual td{background:#f3f1ea;font-weight:600}
+  .fluxoCard summary{cursor:pointer;font-size:14px;font-weight:600}
+  .tipoPill{margin-left:6px}
+  @media (max-width:560px){ .tiles{grid-template-columns:1fr} .tile .tTit{min-height:0} }
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -154,15 +179,7 @@
     </div>
   </div>
 
-  <div class="cards">
-    <div class="card"><p>Renda total</p><p id="rendaTotalOut">R$0</p></div>
-    <div class="card"><p>Compromissos fixos</p><p id="fixoOut">R$0</p></div>
-    <div class="card"><p>Gastos do dia a dia</p><p id="gastosOut">R$0</p></div>
-    <div class="card"><p>Gastos loja</p><p id="gastosLojaOut">R$0</p></div>
-    <div class="card"><p>Disponível</p><p id="saldoOut">R$0</p></div>
-  </div>
-
-  <div id="painelLoja" class="lojaCard" style="display:none" role="status"></div>
+  <div id="fluxo"></div>
 
   <div class="section">
     <h2>Compromissos fixos do mês</h2>
@@ -177,6 +194,7 @@
         <option value="sempre">Todos os meses daqui pra frente</option>
         <option value="n">Por alguns meses…</option>
       </select>
+      <select id="fixoTipoIn" aria-label="tipo do fixo"><option value="Pessoal">Pessoal</option><option value="Loja">Loja</option></select>
       <input id="fixoNIn" type="number" min="2" max="60" value="3" style="display:none;width:70px" aria-label="quantidade de meses">
       <button id="addFixoBtn" class="addBtn">+ adicionar fixo</button>
     </div>
@@ -210,7 +228,7 @@
 
   <div class="section" id="parcSection" style="display:none">
     <h2>Parcelas de compras anteriores</h2>
-    <p class="hint">Projetadas automaticamente a partir dos gastos parcelados lançados em meses anteriores. Já estão somadas em “Gastos do dia a dia”.</p>
+    <p class="hint">Projetadas automaticamente a partir dos gastos parcelados lançados em meses anteriores. Já estão somadas nos gastos do mês (pessoais ou da loja).</p>
     <div id="parcResumo" class="resumo"></div>
     <div id="parcList" class="list"></div>
   </div>
@@ -248,7 +266,7 @@
 
   <div class="section">
     <h2>Caixinhas (reserva)</h2>
-    <p class="hint">Dinheiro guardado. <b>Não entra no cálculo do mês</b> — fica separado, só para quando precisar. Registre quando guardar mais ou retirar.</p>
+    <p class="hint">Dinheiro guardado. Só entra na conta quando você registra uma <b>retirada</b>: ela vale para o mês aberto no topo da página.</p>
     <div id="caixinhasResumo" class="resumo"></div>
     <div id="caixinhasList"></div>
     <details class="novaCx">
@@ -443,15 +461,11 @@
   const entradasFixasList = document.getElementById('entradasFixasList');
   const extrasList = document.getElementById('extrasList');
   const parcList = document.getElementById('parcList');
-  const fixoOut = document.getElementById('fixoOut');
-  const gastosOut = document.getElementById('gastosOut');
-  const saldoOut = document.getElementById('saldoOut');
-  const rendaTotalOut = document.getElementById('rendaTotalOut');
   const parceladoIn = document.getElementById('parceladoIn');
   const parcCampos = document.getElementById('parcCampos');
   const parcHint = document.getElementById('parcHint');
 
-  function fmt(v){ return 'R$' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function fmt(v){ return (v < 0 ? '-' : '') + 'R$' + Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
   let currentMes = loadMes();
   sel.value = currentMes;
@@ -518,7 +532,7 @@
       if(x.ate && x.ate === x.de){ meta = 'só neste mês'; }
       else if(!x.ate){ meta = 'todos os meses desde ' + x.de; }
       else { meta = x.de + ' até ' + x.ate; }
-      out.push({id:x.id, n:String(x.n), v:Number(x.v)||0, meta:meta});
+      out.push({id:x.id, n:String(x.n), v:Number(x.v)||0, meta:meta, tipo:x.tipo === 'Loja' ? 'Loja' : 'Pessoal'});
     });
     return out;
   }
@@ -540,7 +554,7 @@
       ate = mesDeNum(ini + qtd - 1);
     }
     const lista = loadList('fixosExtras');
-    lista.push({id:newId(), n:n, v:v, de:currentMes, ate:ate});
+    lista.push({id:newId(), n:n, v:v, de:currentMes, ate:ate, tipo:document.getElementById('fixoTipoIn').value});
     saveList('fixosExtras', lista);
     document.getElementById('fixoNomeIn').value = '';
     document.getElementById('fixoValIn').value = '';
@@ -591,89 +605,168 @@
     render();
   });
 
-  // ---------- Quadro "Como a loja se paga" ----------
-  const r2c = x => Math.round(x * 100) / 100;
-  // Resumo de qualquer mês, sem mexer na tela
+  // ---------- Salário x Loja ----------
+  const r2c = x => { const n = Math.round(x * 100) / 100; return n === 0 ? 0 : n; };
+  const ehCxLoja = c => String(c.nome).toLowerCase().indexOf('loja') >= 0;
+  // Retirada sem mês marcado (versões antigas) conta para dezembro/2026
+  const mesDoMov = mv => mv.mes || 'Dezembro 2026';
+  function retiradas(filtro, mes){
+    let t = 0;
+    loadList('caixinhas').filter(filtro).forEach(c => (Array.isArray(c.movs) ? c.movs : []).forEach(mv => {
+      if(mv.t === 'out' && mesDoMov(mv) === mes){ t += Number(mv.v) || 0; }
+    }));
+    return r2c(t);
+  }
+  function modoDoMes(m){ const x = loadList('modoLoja').find(y => y.mes === m); return x ? x.modo : 'auto'; }
+  function setModo(m, modo){
+    const l = loadList('modoLoja').filter(y => y.mes !== m);
+    l.push({mes:m, modo:modo}); saveList('modoLoja', l); render();
+  }
+  // Parte 1: o mês sem olhar caixinha
   function resumoMes(m){
-    const rendaBase = parseFloat(rendaIn.value) || 0;
-    let fixo = 0;
+    let renda = parseFloat(rendaIn.value) || 0, fixo = 0, loja = 0, lojaFixa = 0, pessoal = 0;
     (FIXOS_BASE[m] || []).forEach(f => { fixo += f.v; });
-    fixosExtrasDoMes(m).forEach(x => { fixo += x.v; });
-    let renda = rendaBase;
+    fixosExtrasDoMes(m).forEach(x => { if(x.tipo === 'Loja'){ lojaFixa += x.v; } else { fixo += x.v; } });
     (ENTRADAS_FIXAS_BASE[m] || []).forEach(e => { renda += e.v; });
     entradasExtrasDoMes(m).forEach(x => { renda += x.v; });
     loadList('extras:' + m).forEach(e => { renda += Number(e.v) || 0; });
-    let total = 0, loja = 0;
-    loadList('gastos:' + m).forEach(g => { const v = Number(g.v) || 0; total += v; if(g.tipo === 'Loja'){ loja += v; } });
-    parcelasDoMes(m).forEach(p => { total += p.v; if(p.tipo === 'Loja'){ loja += p.v; } });
-    const pessoal = total - loja;
-    const sobra = renda - fixo - pessoal;                 // o que sobra do salário antes de pagar a loja
-    const doSalario = loja > 0 ? Math.min(loja, Math.max(sobra, 0)) : 0;
-    return {renda:r2c(renda), fixo:r2c(fixo), pessoal:r2c(pessoal), loja:r2c(loja), sobra:r2c(sobra),
-            doSalario:r2c(doSalario), daLoja:r2c(loja - doSalario)};
+    loadList('gastos:' + m).concat(parcelasDoMes(m)).forEach(g => {
+      const v = Number(g.v) || 0; if(g.tipo === 'Loja'){ loja += v; } else { pessoal += v; }
+    });
+    loja += lojaFixa;
+    return {mes:m, renda:r2c(renda), fixo:r2c(fixo), pessoal:r2c(pessoal), loja:r2c(loja), lojaFixa:r2c(lojaFixa), sobra:r2c(renda - fixo - pessoal)};
   }
-  function renderPainelLoja(){
-    const el = document.getElementById('painelLoja');
-    const r = resumoMes(currentMes);
-    el.innerHTML = '';
-    if(!(r.loja > 0)){ el.style.display = 'none'; return; }
-    el.style.display = 'block';
-    const cxLoja = loadList('caixinhas').find(c => String(c.nome).toLowerCase().indexOf('loja') >= 0);
-    const saldoLoja = cxLoja ? saldoCx(cxLoja) : null;
-    function linha(rotulo, valor, cls){
-      const l = document.createElement('div'); l.className = 'lojaLinha' + (cls ? ' ' + cls : '');
-      const a = document.createElement('span'); a.textContent = rotulo;
-      const b = document.createElement('b'); b.textContent = valor;
-      l.appendChild(a); l.appendChild(b); el.appendChild(l);
+  // Parte 2: todos os meses em ordem, gastando a caixinha da loja mês a mês
+  function planoMeses(){
+    const temCx = loadList('caixinhas').some(ehCxLoja);
+    let cx = 0;
+    loadList('caixinhas').filter(ehCxLoja).forEach(c => { cx += saldoCx(c); });
+    cx = r2c(cx);
+    return MESES.map(m => {
+      const r = resumoMes(m);
+      r.modo = modoDoMes(m);
+      r.temCx = temCx;
+      r.jaRetirado = Math.min(retiradas(ehCxLoja, m), r.loja);
+      let alvo = r.modo === 'caixinha' ? r.loja : r.modo === 'salario' ? 0 : r.loja - Math.min(r.loja, Math.max(r.sobra, 0));
+      alvo = Math.max(r2c(alvo), r.jaRetirado);
+      r.cxAntes = cx;
+      r.aRetirar = r2c(Math.min(alvo - r.jaRetirado, Math.max(cx, 0)));
+      r.faltouCx = r2c(alvo - r.jaRetirado - r.aRetirar);
+      r.daCaixinha = r2c(r.jaRetirado + r.aRetirar);
+      r.doSalario = r2c(r.loja - r.daCaixinha);
+      r.socorro = retiradas(c => !ehCxLoja(c), m);
+      r.fim = r2c(r.sobra - r.doSalario + r.socorro);
+      cx = r2c(cx - r.aRetirar);
+      r.cxDepois = cx;
+      return r;
+    });
+  }
+  function elx(tag, cls, txt){ const e = document.createElement(tag); if(cls){ e.className = cls; } if(txt !== undefined){ e.textContent = txt; } return e; }
+  function sinal(v){ return v < 0 ? 'negt' : v > 0 ? 'pos' : ''; }
+  function selo(v){ return elx('span', 'badge ' + sinal(v), v < 0 ? 'NEGATIVO' : v > 0 ? 'POSITIVO' : 'FECHOU NO ZERO'); }
+  function renderFluxo(){
+    const box = document.getElementById('fluxo');
+    box.innerHTML = '';
+    const plano = planoMeses();
+    const r = plano.find(x => x.mes === currentMes) || plano[0];
+
+    // --- resposta rápida ---
+    const tiles = elx('div', 'tiles');
+    function tile(id, tit, v, cap, comSelo){
+      const t = elx('div', 'tile ' + sinal(v));
+      t.appendChild(elx('p', 'tTit', tit));
+      const val = elx('p', 'tVal' + (v < 0 ? ' neg' : v > 0 ? ' vpos' : ''), fmt(v)); val.id = id; t.appendChild(val);
+      if(comSelo){ t.appendChild(selo(v)); }
+      t.appendChild(elx('p', 'tCap', cap));
+      tiles.appendChild(t);
     }
-    function nota(txt, cls){
-      const n = document.createElement('div'); n.className = 'lojaNota' + (cls ? ' ' + cls : ''); n.textContent = txt; el.appendChild(n);
+    tile('sobraOut', 'Meu salário, sem as contas da loja', r.sobra,
+      r.sobra < 0 ? 'Suas contas e gastos pessoais passaram do que entrou.' : 'O que resta depois das suas contas e gastos pessoais.', true);
+    let capFim;
+    if(!(r.loja > 0)){ capFim = 'A loja não teve gasto neste mês.'; }
+    else if(r.doSalario > 0){ capFim = fmt(r.doSalario) + ' do seu salário vai para a loja; a caixinha paga ' + fmt(r.daCaixinha) + '.'; }
+    else { capFim = 'A caixinha paga a loja inteira; nada sai do seu salário.'; }
+    if(r.socorro > 0){ capFim += ' Você cobriu ' + fmt(r.socorro) + ' com as outras caixinhas.'; }
+    tile('saldoOut', 'Meu salário, depois de pagar a loja', r.fim, capFim, true);
+    tile('cxOut', 'Caixinha da loja, depois de pagar', r.temCx ? r.cxDepois : 0,
+      !r.temCx ? 'Você não tem uma caixinha da loja cadastrada.' :
+      r.faltouCx > 0 ? 'A caixinha não dá conta: faltam ' + fmt(r.faltouCx) + ', que caem no seu salário.' :
+      r.cxAntes !== r.cxDepois ? 'Antes de pagar este mês: ' + fmt(r.cxAntes) + '.' : 'Sem retirada prevista neste mês.', false);
+    box.appendChild(tiles);
+
+    function linha(pai, rot, val, cls, id){
+      const l = elx('div', 'lojaLinha' + (cls ? ' ' + cls : ''));
+      l.appendChild(elx('span', '', rot)); const b = elx('b', '', val); if(id){ b.id = id; } l.appendChild(b); pai.appendChild(l);
     }
-    const h = document.createElement('h3'); h.textContent = 'Como a loja se paga neste mês'; el.appendChild(h);
-    linha('Gastos da loja no mês', fmt(r.loja), 'lojaTot');
-    linha('Sai do seu salário (seu investimento na loja)', fmt(r.doSalario), 'lojaSal');
-    linha('A loja paga sozinha (da caixinha da loja)', fmt(r.daLoja), 'lojaPropria');
-    const bar = document.createElement('div'); bar.className = 'lojaBar';
-    const s1 = document.createElement('span'); s1.className = 'barSal'; s1.style.width = (r.doSalario / r.loja * 100) + '%';
-    const s2 = document.createElement('span'); s2.className = 'barLoja'; s2.style.width = (r.daLoja / r.loja * 100) + '%';
-    bar.appendChild(s1); bar.appendChild(s2); el.appendChild(bar);
-    if(r.daLoja === 0){
-      nota('O seu salário cobre todos os gastos da loja neste mês. Depois do pessoal e dos fixos sobraram ' + fmt(r.sobra) + '.');
-    } else if(r.sobra > 0){
-      nota('Depois do pessoal e dos fixos sobraram ' + fmt(r.sobra) + ' do salário, e isso vai para a loja. O resto, ' + fmt(r.daLoja) + ', precisa vir da caixinha da loja.');
-    } else {
-      nota('Depois do pessoal e dos fixos não sobrou salário para a loja, então a loja se paga toda com a caixinha.');
-    }
-    if(r.sobra < 0){
-      nota('Atenção: só com o pessoal e os fixos o mês já fecha em ' + fmt(r.sobra) + '. Isso não é gasto da loja.', 'lojaAlerta');
-    }
-    if(r.daLoja > 0){
-      if(saldoLoja === null){ nota('Você ainda não tem uma caixinha da loja cadastrada.', 'lojaAlerta'); }
-      else if(r.daLoja > saldoLoja + 0.001){ nota('Caixinha da loja: saldo ' + fmt(saldoLoja) + '. Não cobre tudo, faltariam ' + fmt(r.daLoja - saldoLoja) + '.', 'lojaAlerta'); }
-      else { nota('Caixinha da loja: saldo ' + fmt(saldoLoja) + ' → ficaria ' + fmt(saldoLoja - r.daLoja) + ' se pagar esse mês com ela.'); }
-    }
-    // acumulado em todos os meses do painel
-    let sal = 0, cx = 0;
-    MESES.forEach(m => { const x = resumoMes(m); sal += x.doSalario; cx += x.daLoja; });
-    sal = r2c(sal); cx = r2c(cx);
-    if(sal + cx > 0){
-      const box = document.createElement('div'); box.className = 'lojaAcum'; el.appendChild(box);
-      const t = document.createElement('div'); t.className = 'lojaNota'; t.style.fontWeight = '600'; t.style.marginTop = '0';
-      t.textContent = 'Somando ' + MESES[0] + ' até ' + MESES[MESES.length - 1]; box.appendChild(t);
-      const mk = (rot, val, cls) => { const l = document.createElement('div'); l.className = 'lojaLinha ' + cls;
-        const a = document.createElement('span'); a.textContent = rot; const b = document.createElement('b'); b.textContent = val;
-        l.appendChild(a); l.appendChild(b); box.appendChild(l); };
-      mk('Do seu salário para a loja', fmt(sal), 'lojaSal');
-      mk('A loja paga sozinha', fmt(cx), 'lojaPropria');
-      if(saldoLoja !== null){
-        const n = document.createElement('div'); n.className = 'lojaNota';
-        n.textContent = cx > saldoLoja + 0.001
-          ? 'Caixinha da loja hoje: ' + fmt(saldoLoja) + '. Não cobre o que a loja precisa pagar sozinha; faltariam ' + fmt(cx - saldoLoja) + '.'
-          : 'Caixinha da loja hoje: ' + fmt(saldoLoja) + '. Cobre o que a loja precisa pagar sozinha e ainda sobrariam ' + fmt(saldoLoja - cx) + '.';
-        box.appendChild(n);
+    // --- 1. salário ---
+    const c1 = elx('div', 'fluxoCard');
+    c1.appendChild(elx('h3', '', '1. Meu salário (sem a loja)'));
+    linha(c1, 'Entrou: salário + quem me paga', fmt(r.renda), '', 'rendaTotalOut');
+    linha(c1, '− Minhas contas fixas', fmt(r.fixo), '', 'fixoOut');
+    linha(c1, '− Meus gastos pessoais', fmt(r.pessoal), '', 'gastosOut');
+    linha(c1, r.sobra < 0 ? '= Faltou' : '= Sobrou', fmt(r.sobra), 'lojaTot ' + (r.sobra < 0 ? 'neg' : 'vpos'));
+    if(r.sobra < 0){ c1.appendChild(elx('div', 'lojaNota lojaAlerta', 'Esse negativo é seu, não da loja. Para cobrir, use a Reserva da tia Bi (só a parcela da tia) ou a Caixinha de emergência: registre a retirada na caixinha e ela entra na conta deste mês.')); }
+    box.appendChild(c1);
+
+    // --- 2. loja ---
+    const c2 = elx('div', 'fluxoCard');
+    c2.appendChild(elx('h3', '', '2. Loja: quem paga'));
+    linha(c2, 'Gastos da loja no mês', fmt(r.loja), 'lojaTot', 'gastosLojaOut');
+    if(r.lojaFixa > 0){ c2.appendChild(elx('div', 'lojaNota', 'Inclui ' + fmt(r.lojaFixa) + ' de contas fixas marcadas como Loja.')); }
+    if(r.loja > 0){
+      const mb = elx('div', 'modoBtns');
+      [['auto', 'Salário primeiro, caixinha completa'], ['caixinha', 'Caixinha paga tudo'], ['salario', 'Meu salário paga tudo']].forEach(p => {
+        const b = elx('button', r.modo === p[0] ? 'ativa' : '', p[1]); b.type = 'button'; b.dataset.modo = p[0];
+        b.setAttribute('aria-pressed', r.modo === p[0] ? 'true' : 'false');
+        b.onclick = () => setModo(currentMes, p[0]); mb.appendChild(b);
+      });
+      c2.appendChild(mb);
+      linha(c2, 'Sai do meu salário', fmt(r.doSalario), 'lojaSal');
+      linha(c2, 'Sai da caixinha da loja', fmt(r.daCaixinha), 'lojaPropria');
+      const bar = elx('div', 'lojaBar');
+      const s1 = elx('span', 'barSal'), s2 = elx('span', 'barLoja');
+      s1.style.width = (r.doSalario / r.loja * 100) + '%'; s2.style.width = (r.daCaixinha / r.loja * 100) + '%';
+      bar.appendChild(s1); bar.appendChild(s2); c2.appendChild(bar);
+      if(r.jaRetirado > 0){ c2.appendChild(elx('div', 'lojaNota', 'Já retirado da caixinha para este mês: ' + fmt(r.jaRetirado) + (r.aRetirar > 0 ? '. Ainda falta retirar ' + fmt(r.aRetirar) + '.' : '. Nada mais a retirar.'))); }
+      if(r.aRetirar > 0){
+        c2.appendChild(elx('div', 'lojaNota', 'Quando pagar de verdade, registre a retirada. Até lá, é só previsão e o saldo da caixinha não muda.'));
+        const b = elx('button', 'addBtn', 'Registrar retirada de ' + fmt(r.aRetirar)); b.type = 'button'; b.id = 'retirarLojaBtn'; b.style.marginTop = '8px';
+        b.onclick = () => {
+          const cxs = loadList('caixinhas'); const alvo = cxs.find(c => ehCxLoja(c) && saldoCx(c) >= r.aRetirar - 0.001);
+          if(!alvo){ alert('Nenhuma caixinha da loja tem esse saldo sozinha. Retire manualmente na caixinha.'); return; }
+          if(!confirm('Registrar retirada de ' + fmt(r.aRetirar) + ' da "' + alvo.nome + '" para pagar a loja em ' + currentMes + '?')) return;
+          alvo.movs.push({id:newId(), t:'out', v:r.aRetirar, d:'Pagou a loja · ' + currentMes, data:hojeISO(), mes:currentMes});
+          saveList('caixinhas', cxs); renderCaixinhas();
+        };
+        c2.appendChild(b);
       }
+      if(r.faltouCx > 0){ c2.appendChild(elx('div', 'lojaNota lojaAlerta', 'A caixinha da loja não cobre tudo. ' + fmt(r.faltouCx) + ' ficam para o seu salário.')); }
     }
+    box.appendChild(c2);
+
+    // --- 3. mês a mês ---
+    const c3 = elx('details', 'fluxoCard');
+    c3.open = mesTabAberta; c3.addEventListener('toggle', () => { mesTabAberta = c3.open; });
+    c3.appendChild(elx('summary', '', 'Ver todos os meses'));
+    const wrap = elx('div', 'mesWrap'), tb = elx('table', 'mesTab'), hr = elx('tr');
+    ['Mês', 'Salário sem a loja', 'Gastos da loja', 'Caixinha paga', 'Salário no fim', 'Sobra na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
+    tb.appendChild(hr);
+    const curto = v => fmt(v).replace('R$', '');
+    plano.forEach(x => {
+      const tr = elx('tr', x.mes === currentMes ? 'atual' : '');
+      tr.appendChild(elx('td', '', x.mes.slice(0, 3) + '/' + x.mes.slice(-2)));
+      tr.appendChild(elx('td', x.sobra < 0 ? 'neg' : '', curto(x.sobra)));
+      tr.appendChild(elx('td', '', curto(x.loja)));
+      tr.appendChild(elx('td', '', curto(x.daCaixinha)));
+      tr.appendChild(elx('td', x.fim < 0 ? 'neg' : x.fim > 0 ? 'vpos' : '', curto(x.fim)));
+      tr.appendChild(elx('td', '', curto(x.cxDepois)));
+      tb.appendChild(tr);
+    });
+    wrap.appendChild(tb); c3.appendChild(wrap);
+    c3.appendChild(elx('div', 'lojaNota', 'A caixinha vai sendo usada em ordem: o que sai em um mês já não está disponível no seguinte. Não conta vendas futuras da loja.'));
+    box.appendChild(c3);
   }
+  let mesTabAberta = false;
 
   function render(){
     if(storageBlocked){ document.getElementById('warnBox').style.display = 'block'; }
@@ -689,13 +782,20 @@
     });
     fixosAdd.forEach(x=>{
       totalFixo += x.v;
-      fixosList.appendChild(makeRow(x.n, x.meta, fmt(x.v), ()=>{
+      const rowF = makeRow(x.n, x.meta, fmt(x.v), ()=>{
         if(!confirm('Remover "' + x.n + '" (' + x.meta + ')?' + (x.meta === 'só neste mês' ? '' : '\n\nIsso tira o gasto de todos os meses em que ele vale.'))) return;
         saveList('fixosExtras', loadList('fixosExtras').filter(y=>y.id !== x.id));
         render();
-      }, 'remover gasto fixo'));
+      }, 'remover gasto fixo');
+      const tp = elx('button', 'pill tipoPill ' + (x.tipo === 'Loja' ? 'p2' : 'p3'), x.tipo);
+      tp.type = 'button'; tp.setAttribute('aria-label', 'tipo ' + x.tipo + ' (toque para trocar)');
+      tp.onclick = ()=>{
+        const l = loadList('fixosExtras'); const it = l.find(y=>y.id === x.id);
+        if(it){ it.tipo = x.tipo === 'Loja' ? 'Pessoal' : 'Loja'; saveList('fixosExtras', l); render(); }
+      };
+      const rf = rowF.querySelector('.rowRight'); rf.insertBefore(tp, rf.firstChild);
+      fixosList.appendChild(rowF);
     });
-    fixoOut.textContent = fmt(totalFixo);
 
     const entradasFixas = ENTRADAS_FIXAS_BASE[currentMes] || [];
     entradasFixasList.innerHTML = '';
@@ -797,8 +897,6 @@
       }
       gastosList.appendChild(rowG);
     });
-    gastosOut.textContent = fmt(totalGastos - totalLoja);
-    document.getElementById('gastosLojaOut').textContent = fmt(totalLoja);
     const tipoResumoEl = document.getElementById('tipoResumo');
     if(totalPessoal > 0 || totalLoja > 0){
       tipoResumoEl.textContent = 'Pessoal: ' + fmt(totalPessoal) + '  ·  Loja: ' + fmt(totalLoja);
@@ -806,13 +904,7 @@
       tipoResumoEl.textContent = '';
     }
 
-    const rendaBase = parseFloat(rendaIn.value) || 0;
-    const rendaTotal = rendaBase + totalEntradasFixas + totalExtras;
-    rendaTotalOut.textContent = fmt(rendaTotal);
-    const saldo = rendaTotal - totalFixo - totalGastos;
-    saldoOut.textContent = fmt(saldo);
-    saldoOut.className = saldo < 0 ? 'neg' : '';
-    renderPainelLoja();
+    renderFluxo();
 
     renderBackupInfo();
   }
@@ -971,7 +1063,7 @@
         if(t === 'out' && v > saldo + 0.001){
           alert('Essa retirada (' + fmt(v) + ') é maior que o saldo da caixinha (' + fmt(saldo) + ').'); return;
         }
-        c.movs.push({id:newId(), t:t, v:v, d:mot.value.trim() || (t === 'in' ? 'Guardado' : 'Retirada'), data:hojeISO()});
+        c.movs.push({id:newId(), t:t, v:v, d:mot.value.trim() || (t === 'in' ? 'Guardado' : 'Retirada'), data:hojeISO(), mes:currentMes});
         saveList('caixinhas', lista);
         renderCaixinhas();
       }
@@ -1016,7 +1108,8 @@
       }
       el.appendChild(card);
     });
-    document.getElementById('caixinhasResumo').textContent = lista.length ? 'Total guardado: ' + fmt(total) + '  ·  fora do cálculo do mês' : '';
+    renderFluxo();
+    document.getElementById('caixinhasResumo').textContent = lista.length ? 'Total guardado: ' + fmt(total) : '';
   }
 
   document.getElementById('addCxBtn').addEventListener('click', () => {
@@ -1411,7 +1504,7 @@
 
   // ---------- Backup ----------
   const BACKUP_APP = 'painel-financeiro-bruna';
-  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas' || k === 'fixosExtras' || k === 'entradasFixasExtras';
+  const isDataKey = k => /^(gastos:|extras:)/.test(k) || k === 'renda' || k === 'mesAtual' || k === 'parcelas' || k === 'compras' || k === 'viagens' || k === 'caixinhas' || k === 'fixosExtras' || k === 'modoLoja' || k === 'entradasFixasExtras';
   const backupInfo = document.getElementById('backupInfo');
   const backupMsg = document.getElementById('backupMsg');
 
