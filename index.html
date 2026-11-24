@@ -661,6 +661,8 @@
       r.daCaixinha = r2c(r.jaRetirado + r.aRetirar);
       r.doSalario = r2c(r.loja - r.daCaixinha);
       r.socorro = retiradas(c => !ehCxLoja(c), m);
+      r.total = r2c(r.fixo + r.pessoal + r.loja);
+      r.saldoTudo = r2c(r.renda - r.total);
       r.fim = r2c(r.sobra - r.doSalario + r.socorro);
       cx = r2c(cx - r.aRetirar);
       r.cxDepois = cx;
@@ -716,14 +718,16 @@
     // --- resultado ---
     box.appendChild(elx('div', 'grpTit', 'Resultado'));
     const g3 = elx('div', 'nGrid'); box.appendChild(g3);
+    card(g3, 'totalGastoOut', 'Total gasto', r.total, 'contas + pessoal + loja');
+    card(g3, 'saldoTudoOut', 'Saldo final', r.saldoTudo, 'pessoal + loja, sem caixinha', {res:true});
     if(r.socorro > 0){ card(g3, 'socorroOut', 'Cobri com minhas caixinhas', r.socorro, 'emergência, tia e outras', {full:true}); }
-    card(g3, 'saldoOut', 'Meu salário no fim do mês', r.fim, r.fim < 0 ? 'negativo, já com a loja' : r.fim > 0 ? 'positivo, já com a loja' : 'zerado, já com a loja', {res:true, full:true});
+    card(g3, 'saldoOut', 'Saldo final com a caixinha', r.fim, (r.fim < 0 ? 'negativo' : r.fim > 0 ? 'positivo' : 'zerado') + (r.daCaixinha > 0 ? ', caixinha da loja paga ' + fmt(r.daCaixinha) : ', sem usar a caixinha'), {res:true, full:true});
     // --- todos os meses ---
     const c3 = elx('details', 'fluxoCard');
     c3.open = mesTabAberta; c3.addEventListener('toggle', () => { mesTabAberta = c3.open; });
     c3.appendChild(elx('summary', '', 'Todos os meses'));
     const wrap = elx('div', 'mesWrap'), tb = elx('table', 'mesTab'), hr = elx('tr');
-    ['Mês', 'Salário sem a loja', 'Gastos da loja', 'Caixinha paga', 'Salário no fim', 'Resta na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
+    ['Mês', 'Salário sem a loja', 'Gastos da loja', 'Saldo final', 'Caixinha paga', 'Saldo com caixinha', 'Resta na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
     tb.appendChild(hr);
     const curto = v => fmt(v).replace('R$', '');
     plano.forEach(x => {
@@ -731,6 +735,7 @@
       tr.appendChild(elx('td', '', x.mes.slice(0, 3) + '/' + x.mes.slice(-2)));
       tr.appendChild(elx('td', x.sobra < 0 ? 'neg' : '', curto(x.sobra)));
       tr.appendChild(elx('td', '', curto(x.loja)));
+      tr.appendChild(elx('td', x.saldoTudo < 0 ? 'neg' : '', curto(x.saldoTudo)));
       tr.appendChild(elx('td', '', curto(x.daCaixinha)));
       tr.appendChild(elx('td', x.fim < 0 ? 'neg' : x.fim > 0 ? 'vpos' : '', curto(x.fim)));
       tr.appendChild(elx('td', '', curto(x.cxDepois)));
