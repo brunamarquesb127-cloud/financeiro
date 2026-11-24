@@ -183,8 +183,11 @@
   <div id="fluxo"></div>
 
   <div class="section">
-    <h2>Compromissos fixos do mês</h2>
+    <h2>Compromissos fixos do mês · pessoal</h2>
     <div id="fixosList" class="list"></div>
+    <h2 style="margin-top:16px">Compromissos fixos do mês · loja</h2>
+    <div id="fixosLojaList" class="list"></div>
+    <h2 style="margin-top:16px">Adicionar compromisso fixo</h2>
     <div class="addRow">
       <input id="fixoNomeIn" type="text" placeholder="Ex: internet, plano de saúde">
       <input id="fixoValIn" type="text" inputmode="decimal" placeholder="R$" style="width:90px">
@@ -683,15 +686,16 @@
       const n = elx('p', 'nVal' + (op.res ? (v < 0 ? ' neg' : v > 0 ? ' vpos' : '') : ''), fmt(v)); if(id){ n.id = id; }
       c.appendChild(n); c.appendChild(elx('p', 'nDesc', desc)); grid.appendChild(c);
     }
-    // --- meu salário ---
-    box.appendChild(elx('div', 'grpTit', 'Meu salário'));
+    // --- os números do mês ---
     const g1 = elx('div', 'nGrid'); box.appendChild(g1);
-    card(g1, 'rendaTotalOut', 'Entrou', r.renda, 'salário + quem me paga');
-    card(g1, 'fixoOut', 'Contas fixas', r.fixo, 'só as minhas');
-    card(g1, 'gastosOut', 'Gastos pessoais', r.pessoal, 'só os meus');
-    card(g1, 'sobraOut', r.sobra < 0 ? 'Faltou' : 'Sobrou', r.sobra, 'sem contar a loja', {res:true});
-    // --- loja ---
-    const t2 = elx('div', 'grpTit', 'Loja'); box.appendChild(t2);
+    card(g1, 'rendaTotalOut', 'Renda total', r.renda, 'salário + quem me paga');
+    card(g1, 'saldoTudoOut', 'Disponível', r.saldoTudo, 'renda − pessoal − loja', {res:true});
+    card(g1, 'fixoOut', 'Compromissos fixos pessoal', r.fixo, 'minhas contas do mês');
+    card(g1, 'fixoLojaOut', 'Compromissos fixos loja', r.lojaFixa, 'contas fixas da loja');
+    card(g1, 'gastosOut', 'Gastos do dia a dia', r.pessoal, 'só pessoal');
+    card(g1, 'gastosLojaOut', 'Gastos loja', r2c(r.loja - r.lojaFixa), 'compras e parcelas da loja');
+    // --- quem paga ---
+    const t2 = elx('div', 'grpTit', 'Meu salário x loja'); box.appendChild(t2);
     if(r.loja > 0){
       const s = elx('select'); s.id = 'modoSel'; s.setAttribute('aria-label', 'quem paga a loja');
       [['auto', 'Salário paga primeiro'], ['caixinha', 'Caixinha paga tudo'], ['salario', 'Salário paga tudo']].forEach(p => {
@@ -700,10 +704,13 @@
       s.value = r.modo; s.onchange = () => setModo(currentMes, s.value); t2.appendChild(s);
     }
     const g2 = elx('div', 'nGrid'); box.appendChild(g2);
-    card(g2, 'gastosLojaOut', 'Gastos da loja', r.loja, 'total do mês');
-    card(g2, 'cxPagaOut', 'Caixinha paga', r.daCaixinha, r.faltouCx > 0 ? 'não cobriu ' + fmt(r.faltouCx) : 'sai da caixinha da loja');
-    card(g2, 'salPagaOut', 'Meu salário paga', r.doSalario, 'sai do meu bolso');
+    card(g2, 'sobraOut', r.sobra < 0 ? 'Faltou do meu salário' : 'Sobrou do meu salário', r.sobra, 'sem contar a loja', {res:true});
+    card(g2, 'lojaTotalOut', 'Total da loja', r.loja, 'fixos + gastos da loja');
+    card(g2, 'salPagaOut', 'Meu salário paga', r.doSalario, 'da loja, do meu bolso');
+    card(g2, 'cxPagaOut', 'Caixinha da loja paga', r.daCaixinha, r.faltouCx > 0 ? 'não cobriu ' + fmt(r.faltouCx) : 'da loja, sem meu salário');
     card(g2, 'cxOut', 'Resta na caixinha', r.temCx ? r.cxDepois : 0, r.temCx ? 'antes: ' + fmt(r.cxAntes) : 'sem caixinha da loja');
+    if(r.socorro > 0){ card(g2, 'socorroOut', 'Cobri com outras caixinhas', r.socorro, 'emergência, tia e outras'); }
+    card(g2, 'saldoOut', 'Saldo final do meu salário', r.fim, 'depois da caixinha', {res:true, full:r.socorro > 0});
     if(r.aRetirar > 0){
       const b = elx('button', 'nBtn', 'Registrar retirada de ' + fmt(r.aRetirar)); b.type = 'button'; b.id = 'retirarLojaBtn';
       b.onclick = () => {
@@ -715,19 +722,12 @@
       };
       box.appendChild(b);
     }
-    // --- resultado ---
-    box.appendChild(elx('div', 'grpTit', 'Resultado'));
-    const g3 = elx('div', 'nGrid'); box.appendChild(g3);
-    card(g3, 'totalGastoOut', 'Total gasto', r.total, 'contas + pessoal + loja');
-    card(g3, 'saldoTudoOut', 'Saldo final', r.saldoTudo, 'pessoal + loja, sem caixinha', {res:true});
-    if(r.socorro > 0){ card(g3, 'socorroOut', 'Cobri com minhas caixinhas', r.socorro, 'emergência, tia e outras', {full:true}); }
-    card(g3, 'saldoOut', 'Saldo final com a caixinha', r.fim, (r.fim < 0 ? 'negativo' : r.fim > 0 ? 'positivo' : 'zerado') + (r.daCaixinha > 0 ? ', caixinha da loja paga ' + fmt(r.daCaixinha) : ', sem usar a caixinha'), {res:true, full:true});
     // --- todos os meses ---
     const c3 = elx('details', 'fluxoCard');
     c3.open = mesTabAberta; c3.addEventListener('toggle', () => { mesTabAberta = c3.open; });
     c3.appendChild(elx('summary', '', 'Todos os meses'));
     const wrap = elx('div', 'mesWrap'), tb = elx('table', 'mesTab'), hr = elx('tr');
-    ['Mês', 'Salário sem a loja', 'Gastos da loja', 'Saldo final', 'Caixinha paga', 'Saldo com caixinha', 'Resta na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
+    ['Mês', 'Salário sem a loja', 'Total da loja', 'Disponível', 'Caixinha paga', 'Saldo do salário', 'Resta na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
     tb.appendChild(hr);
     const curto = v => fmt(v).replace('R$', '');
     plano.forEach(x => {
@@ -753,7 +753,9 @@
     fixosList.innerHTML = '';
     let totalFixo = 0;
     const fixosAdd = fixosExtrasDoMes(currentMes);
-    if(fixos.length===0 && fixosAdd.length===0){ fixosList.innerHTML = '<div class="empty">nenhum compromisso fixo neste mês</div>'; }
+    const fixosLojaList = document.getElementById('fixosLojaList');
+    fixosLojaList.innerHTML = fixosAdd.some(x=>x.tipo === 'Loja') ? '' : '<div class="empty">nenhum compromisso fixo da loja neste mês</div>';
+    if(fixos.length===0 && !fixosAdd.some(x=>x.tipo !== 'Loja')){ fixosList.innerHTML = '<div class="empty">nenhum compromisso fixo neste mês</div>'; }
     fixos.forEach(f=>{
       totalFixo += f.v;
       fixosList.appendChild(makeRow(f.n, null, fmt(f.v)));
@@ -772,7 +774,7 @@
         if(it){ it.tipo = x.tipo === 'Loja' ? 'Pessoal' : 'Loja'; saveList('fixosExtras', l); render(); }
       };
       const rf = rowF.querySelector('.rowRight'); rf.insertBefore(tp, rf.firstChild);
-      fixosList.appendChild(rowF);
+      (x.tipo === 'Loja' ? fixosLojaList : fixosList).appendChild(rowF);
     });
 
     const entradasFixas = ENTRADAS_FIXAS_BASE[currentMes] || [];
