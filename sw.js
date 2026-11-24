@@ -1,6 +1,6 @@
 // Service worker do Painel Financeiro: guarda o app para abrir offline.
 // Ao mudar o index.html, aumente a versão abaixo para o iPhone pegar a novidade.
-const VERSAO = 'painel-v25';
+const VERSAO = 'painel-v26';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -16,7 +16,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, {cache: 'no-cache'}).then(r => {
       const copia = r.clone();
       caches.open(VERSAO).then(c => c.put(e.request, copia));
       return r;

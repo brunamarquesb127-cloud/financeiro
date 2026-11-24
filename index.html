@@ -137,22 +137,24 @@
   .lojaNota{font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.45}
   .lojaAlerta{color:#7a5a00}
   .lojaAcum{border-top:0.5px solid var(--border);margin-top:10px;padding-top:8px}
-  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
-  .tile{background:var(--card);border:0.5px solid var(--border);border-top:4px solid var(--border-strong);border-radius:12px;padding:14px}
-  .tile.pos{border-top-color:#2e9a4a}
-  .tile.negt{border-top-color:#b3261e}
-  .tile .tTit{font-size:12px;color:var(--text-secondary);margin:0 0 6px;min-height:30px}
-  .tile .tVal{font-size:20px;font-weight:600;margin:0 0 6px;white-space:nowrap}
-  .tile .tCap{font-size:12px;color:var(--text-secondary);margin:6px 0 0;line-height:1.4}
-  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#eceae4;color:#5f5e5a}
-  .badge.pos{background:#dff1e3;color:#1f6b33}
-  .badge.negt{background:#fde2e2;color:#791f1f}
+  .grpTit{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;font-weight:600;margin:0 0 8px}
+  .grpTit select{font-size:12px;font-weight:400;padding:5px 8px;min-width:0;max-width:100%}
+  .nGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px}
+  .nCard{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:14px;min-width:0}
+  .nCard.full{grid-column:1/-1}
+  .nCard p{margin:0}
+  .nCard .nTit{font-size:13px;color:var(--text)}
+  .nCard .nVal{font-size:20px;font-weight:600;margin:4px 0 2px;white-space:nowrap}
+  .nCard .nDesc{font-size:11px;color:var(--text-muted)}
+  .nCard.res{border-width:1.5px}
+  .nCard.res.pos{border-color:#2e9a4a;background:#f2faf4}
+  .nCard.res.negt{border-color:#b3261e;background:#fdf3f2}
+  .nCard.full .nVal{font-size:26px}
+  .nBtn{margin:-8px 0 20px}
+  @media (max-width:420px){ .nGrid{gap:8px} .nCard{padding:12px} .nCard .nVal{font-size:17px} }
   .vpos{color:#1f6b33}
   .fluxoCard{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px}
   .fluxoCard h3{font-size:14px;font-weight:600;margin:0 0 8px}
-  .modoBtns{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
-  .modoBtns button{font-size:12px;padding:6px 10px;color:var(--text-secondary)}
-  .modoBtns button.ativa,.modoBtns button.ativa:hover{background:var(--text);color:#fff;border-color:var(--text);font-weight:600}
   .mesWrap{overflow-x:auto}
   .mesTab{width:100%;border-collapse:collapse;font-size:12px}
   .mesTab th,.mesTab td{padding:6px 6px;text-align:right;border-bottom:0.5px solid var(--border);white-space:nowrap}
@@ -161,7 +163,6 @@
   .mesTab tr.atual td{background:#f3f1ea;font-weight:600}
   .fluxoCard summary{cursor:pointer;font-size:14px;font-weight:600}
   .tipoPill{margin-left:6px}
-  @media (max-width:560px){ .tiles{grid-template-columns:1fr} .tile .tTit{min-height:0} }
   @media (max-width:480px){ .cards{grid-template-columns:1fr} }
 </style>
 </head>
@@ -668,93 +669,61 @@
   }
   function elx(tag, cls, txt){ const e = document.createElement(tag); if(cls){ e.className = cls; } if(txt !== undefined){ e.textContent = txt; } return e; }
   function sinal(v){ return v < 0 ? 'negt' : v > 0 ? 'pos' : ''; }
-  function selo(v){ return elx('span', 'badge ' + sinal(v), v < 0 ? 'NEGATIVO' : v > 0 ? 'POSITIVO' : 'FECHOU NO ZERO'); }
   function renderFluxo(){
     const box = document.getElementById('fluxo');
     box.innerHTML = '';
     const plano = planoMeses();
     const r = plano.find(x => x.mes === currentMes) || plano[0];
-
-    // --- resposta rápida ---
-    const tiles = elx('div', 'tiles');
-    function tile(id, tit, v, cap, comSelo){
-      const t = elx('div', 'tile ' + sinal(v));
-      t.appendChild(elx('p', 'tTit', tit));
-      const val = elx('p', 'tVal' + (v < 0 ? ' neg' : v > 0 ? ' vpos' : ''), fmt(v)); val.id = id; t.appendChild(val);
-      if(comSelo){ t.appendChild(selo(v)); }
-      t.appendChild(elx('p', 'tCap', cap));
-      tiles.appendChild(t);
+    function card(grid, id, tit, v, desc, op){
+      op = op || {};
+      const c = elx('div', 'nCard' + (op.full ? ' full' : '') + (op.res ? ' res ' + sinal(v) : ''));
+      c.appendChild(elx('p', 'nTit', tit));
+      const n = elx('p', 'nVal' + (op.res ? (v < 0 ? ' neg' : v > 0 ? ' vpos' : '') : ''), fmt(v)); if(id){ n.id = id; }
+      c.appendChild(n); c.appendChild(elx('p', 'nDesc', desc)); grid.appendChild(c);
     }
-    tile('sobraOut', 'Meu salário, sem as contas da loja', r.sobra,
-      r.sobra < 0 ? 'Suas contas e gastos pessoais passaram do que entrou.' : 'O que resta depois das suas contas e gastos pessoais.', true);
-    let capFim;
-    if(!(r.loja > 0)){ capFim = 'A loja não teve gasto neste mês.'; }
-    else if(r.doSalario > 0){ capFim = fmt(r.doSalario) + ' do seu salário vai para a loja; a caixinha paga ' + fmt(r.daCaixinha) + '.'; }
-    else { capFim = 'A caixinha paga a loja inteira; nada sai do seu salário.'; }
-    if(r.socorro > 0){ capFim += ' Você cobriu ' + fmt(r.socorro) + ' com as outras caixinhas.'; }
-    tile('saldoOut', 'Meu salário, depois de pagar a loja', r.fim, capFim, true);
-    tile('cxOut', 'Caixinha da loja, depois de pagar', r.temCx ? r.cxDepois : 0,
-      !r.temCx ? 'Você não tem uma caixinha da loja cadastrada.' :
-      r.faltouCx > 0 ? 'A caixinha não dá conta: faltam ' + fmt(r.faltouCx) + ', que caem no seu salário.' :
-      r.cxAntes !== r.cxDepois ? 'Antes de pagar este mês: ' + fmt(r.cxAntes) + '.' : 'Sem retirada prevista neste mês.', false);
-    box.appendChild(tiles);
-
-    function linha(pai, rot, val, cls, id){
-      const l = elx('div', 'lojaLinha' + (cls ? ' ' + cls : ''));
-      l.appendChild(elx('span', '', rot)); const b = elx('b', '', val); if(id){ b.id = id; } l.appendChild(b); pai.appendChild(l);
-    }
-    // --- 1. salário ---
-    const c1 = elx('div', 'fluxoCard');
-    c1.appendChild(elx('h3', '', '1. Meu salário (sem a loja)'));
-    linha(c1, 'Entrou: salário + quem me paga', fmt(r.renda), '', 'rendaTotalOut');
-    linha(c1, '− Minhas contas fixas', fmt(r.fixo), '', 'fixoOut');
-    linha(c1, '− Meus gastos pessoais', fmt(r.pessoal), '', 'gastosOut');
-    linha(c1, r.sobra < 0 ? '= Faltou' : '= Sobrou', fmt(r.sobra), 'lojaTot ' + (r.sobra < 0 ? 'neg' : 'vpos'));
-    if(r.sobra < 0){ c1.appendChild(elx('div', 'lojaNota lojaAlerta', 'Esse negativo é seu, não da loja. Para cobrir, use a Reserva da tia Bi (só a parcela da tia) ou a Caixinha de emergência: registre a retirada na caixinha e ela entra na conta deste mês.')); }
-    box.appendChild(c1);
-
-    // --- 2. loja ---
-    const c2 = elx('div', 'fluxoCard');
-    c2.appendChild(elx('h3', '', '2. Loja: quem paga'));
-    linha(c2, 'Gastos da loja no mês', fmt(r.loja), 'lojaTot', 'gastosLojaOut');
-    if(r.lojaFixa > 0){ c2.appendChild(elx('div', 'lojaNota', 'Inclui ' + fmt(r.lojaFixa) + ' de contas fixas marcadas como Loja.')); }
+    // --- meu salário ---
+    box.appendChild(elx('div', 'grpTit', 'Meu salário'));
+    const g1 = elx('div', 'nGrid'); box.appendChild(g1);
+    card(g1, 'rendaTotalOut', 'Entrou', r.renda, 'salário + quem me paga');
+    card(g1, 'fixoOut', 'Contas fixas', r.fixo, 'só as minhas');
+    card(g1, 'gastosOut', 'Gastos pessoais', r.pessoal, 'só os meus');
+    card(g1, 'sobraOut', r.sobra < 0 ? 'Faltou' : 'Sobrou', r.sobra, 'sem contar a loja', {res:true});
+    // --- loja ---
+    const t2 = elx('div', 'grpTit', 'Loja'); box.appendChild(t2);
     if(r.loja > 0){
-      const mb = elx('div', 'modoBtns');
-      [['auto', 'Salário primeiro, caixinha completa'], ['caixinha', 'Caixinha paga tudo'], ['salario', 'Meu salário paga tudo']].forEach(p => {
-        const b = elx('button', r.modo === p[0] ? 'ativa' : '', p[1]); b.type = 'button'; b.dataset.modo = p[0];
-        b.setAttribute('aria-pressed', r.modo === p[0] ? 'true' : 'false');
-        b.onclick = () => setModo(currentMes, p[0]); mb.appendChild(b);
+      const s = elx('select'); s.id = 'modoSel'; s.setAttribute('aria-label', 'quem paga a loja');
+      [['auto', 'Salário paga primeiro'], ['caixinha', 'Caixinha paga tudo'], ['salario', 'Salário paga tudo']].forEach(p => {
+        const o = elx('option', '', p[1]); o.value = p[0]; s.appendChild(o);
       });
-      c2.appendChild(mb);
-      linha(c2, 'Sai do meu salário', fmt(r.doSalario), 'lojaSal');
-      linha(c2, 'Sai da caixinha da loja', fmt(r.daCaixinha), 'lojaPropria');
-      const bar = elx('div', 'lojaBar');
-      const s1 = elx('span', 'barSal'), s2 = elx('span', 'barLoja');
-      s1.style.width = (r.doSalario / r.loja * 100) + '%'; s2.style.width = (r.daCaixinha / r.loja * 100) + '%';
-      bar.appendChild(s1); bar.appendChild(s2); c2.appendChild(bar);
-      if(r.jaRetirado > 0){ c2.appendChild(elx('div', 'lojaNota', 'Já retirado da caixinha para este mês: ' + fmt(r.jaRetirado) + (r.aRetirar > 0 ? '. Ainda falta retirar ' + fmt(r.aRetirar) + '.' : '. Nada mais a retirar.'))); }
-      if(r.aRetirar > 0){
-        c2.appendChild(elx('div', 'lojaNota', 'Quando pagar de verdade, registre a retirada. Até lá, é só previsão e o saldo da caixinha não muda.'));
-        const b = elx('button', 'addBtn', 'Registrar retirada de ' + fmt(r.aRetirar)); b.type = 'button'; b.id = 'retirarLojaBtn'; b.style.marginTop = '8px';
-        b.onclick = () => {
-          const cxs = loadList('caixinhas'); const alvo = cxs.find(c => ehCxLoja(c) && saldoCx(c) >= r.aRetirar - 0.001);
-          if(!alvo){ alert('Nenhuma caixinha da loja tem esse saldo sozinha. Retire manualmente na caixinha.'); return; }
-          if(!confirm('Registrar retirada de ' + fmt(r.aRetirar) + ' da "' + alvo.nome + '" para pagar a loja em ' + currentMes + '?')) return;
-          alvo.movs.push({id:newId(), t:'out', v:r.aRetirar, d:'Pagou a loja · ' + currentMes, data:hojeISO(), mes:currentMes});
-          saveList('caixinhas', cxs); renderCaixinhas();
-        };
-        c2.appendChild(b);
-      }
-      if(r.faltouCx > 0){ c2.appendChild(elx('div', 'lojaNota lojaAlerta', 'A caixinha da loja não cobre tudo. ' + fmt(r.faltouCx) + ' ficam para o seu salário.')); }
+      s.value = r.modo; s.onchange = () => setModo(currentMes, s.value); t2.appendChild(s);
     }
-    box.appendChild(c2);
-
-    // --- 3. mês a mês ---
+    const g2 = elx('div', 'nGrid'); box.appendChild(g2);
+    card(g2, 'gastosLojaOut', 'Gastos da loja', r.loja, 'total do mês');
+    card(g2, 'cxPagaOut', 'Caixinha paga', r.daCaixinha, r.faltouCx > 0 ? 'não cobriu ' + fmt(r.faltouCx) : 'sai da caixinha da loja');
+    card(g2, 'salPagaOut', 'Meu salário paga', r.doSalario, 'sai do meu bolso');
+    card(g2, 'cxOut', 'Resta na caixinha', r.temCx ? r.cxDepois : 0, r.temCx ? 'antes: ' + fmt(r.cxAntes) : 'sem caixinha da loja');
+    if(r.aRetirar > 0){
+      const b = elx('button', 'nBtn', 'Registrar retirada de ' + fmt(r.aRetirar)); b.type = 'button'; b.id = 'retirarLojaBtn';
+      b.onclick = () => {
+        const cxs = loadList('caixinhas'); const alvo = cxs.find(c => ehCxLoja(c) && saldoCx(c) >= r.aRetirar - 0.001);
+        if(!alvo){ alert('Nenhuma caixinha da loja tem esse saldo sozinha. Retire manualmente na caixinha.'); return; }
+        if(!confirm('Registrar retirada de ' + fmt(r.aRetirar) + ' da "' + alvo.nome + '" para pagar a loja em ' + currentMes + '?')) return;
+        alvo.movs.push({id:newId(), t:'out', v:r.aRetirar, d:'Pagou a loja · ' + currentMes, data:hojeISO(), mes:currentMes});
+        saveList('caixinhas', cxs); renderCaixinhas();
+      };
+      box.appendChild(b);
+    }
+    // --- resultado ---
+    box.appendChild(elx('div', 'grpTit', 'Resultado'));
+    const g3 = elx('div', 'nGrid'); box.appendChild(g3);
+    if(r.socorro > 0){ card(g3, 'socorroOut', 'Cobri com minhas caixinhas', r.socorro, 'emergência, tia e outras', {full:true}); }
+    card(g3, 'saldoOut', 'Meu salário no fim do mês', r.fim, r.fim < 0 ? 'negativo, já com a loja' : r.fim > 0 ? 'positivo, já com a loja' : 'zerado, já com a loja', {res:true, full:true});
+    // --- todos os meses ---
     const c3 = elx('details', 'fluxoCard');
     c3.open = mesTabAberta; c3.addEventListener('toggle', () => { mesTabAberta = c3.open; });
-    c3.appendChild(elx('summary', '', 'Ver todos os meses'));
+    c3.appendChild(elx('summary', '', 'Todos os meses'));
     const wrap = elx('div', 'mesWrap'), tb = elx('table', 'mesTab'), hr = elx('tr');
-    ['Mês', 'Salário sem a loja', 'Gastos da loja', 'Caixinha paga', 'Salário no fim', 'Sobra na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
+    ['Mês', 'Salário sem a loja', 'Gastos da loja', 'Caixinha paga', 'Salário no fim', 'Resta na caixinha'].forEach(h => hr.appendChild(elx('th', '', h)));
     tb.appendChild(hr);
     const curto = v => fmt(v).replace('R$', '');
     plano.forEach(x => {
@@ -768,7 +737,6 @@
       tb.appendChild(tr);
     });
     wrap.appendChild(tb); c3.appendChild(wrap);
-    c3.appendChild(elx('div', 'lojaNota', 'A caixinha vai sendo usada em ordem: o que sai em um mês já não está disponível no seguinte. Não conta vendas futuras da loja.'));
     box.appendChild(c3);
   }
   let mesTabAberta = false;
@@ -1609,7 +1577,7 @@
 
   // PWA: registra o service worker só quando servido por http(s)
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).catch(()=>{});
   }
 })();
 </script>
