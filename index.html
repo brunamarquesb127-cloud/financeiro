@@ -523,6 +523,11 @@
   // ---------- Gastos fixos adicionados pela Bruna ----------
   // 'fixosExtras' = [{id, n, v, de:'Mês Ano', ate:'Mês Ano' ou '' (sem fim)}]
   function mesDeNum(n){ return NOMES_MES[n % 12] + ' ' + Math.floor(n / 12); }
+  // Sem tipo escolhido: MEI e Nuvemshop são da loja (confirmado pela Bruna); o resto é pessoal
+  function tipoFixo(x){
+    if(x.tipo === 'Loja' || x.tipo === 'Pessoal'){ return x.tipo; }
+    return ['mei', 'nuvem shop', 'nuvemshop'].indexOf(String(x.n).trim().toLowerCase()) >= 0 ? 'Loja' : 'Pessoal';
+  }
   function fixosExtrasDoMes(mes){
     const idx = mesNum(mes), out = [];
     loadList('fixosExtras').forEach(x=>{
@@ -532,7 +537,7 @@
       if(x.ate && x.ate === x.de){ meta = 'só neste mês'; }
       else if(!x.ate){ meta = 'todos os meses desde ' + x.de; }
       else { meta = x.de + ' até ' + x.ate; }
-      out.push({id:x.id, n:String(x.n), v:Number(x.v)||0, meta:meta, tipo:x.tipo === 'Loja' ? 'Loja' : 'Pessoal'});
+      out.push({id:x.id, n:String(x.n), v:Number(x.v)||0, meta:meta, tipo:tipoFixo(x)});
     });
     return out;
   }
